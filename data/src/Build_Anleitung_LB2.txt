@@ -1,0 +1,21 @@
+sudo apt-get install build-essential git-core cmake pkg-config subversion libcurl4-openssl-dev libgnutls28-dev libsasl2-dev uuid-dev libtool libssl-dev libgcrypt20-dev libmicrohttpd-dev libltdl-dev libjson-c-dev libleptonica-dev libmosquitto-dev libunistring-dev dh-autoreconf
+
+git clone https://github.com/volkszaehler/vzlogger.git
+
+su -
+
+cd vzlogger
+
+./install.sh
+
+exit
+
+cd ../../../
+
+cp -av /usr/local/bin/vzlogger ./data/armhf
+cp -av /usr/local/bin/mbus* ./data/armhf
+cp -av /usr/local/lib/libmbus* ./data/armhf/lib
+cp -av /usr/local/lib/libjson* ./data/armhf/lib
+cp -av /usr/lib/libsml* ./data/armhf/lib
+
+
