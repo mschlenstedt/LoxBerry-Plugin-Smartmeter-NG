@@ -89,6 +89,10 @@ find(
 foreach my $path (@template_paths) {
 	my $source = slurp_utf8($path);
 	unlike($source, qr/T::/, "$path contains no legacy T:: translation aliases");
+	# A TMPL_VAR/TMPL_IF tag with no name aborts HTML::Template at parse time.
+	# This most easily slips in through a literal "<TMPL_VAR>" inside a comment,
+	# and javascript.js is rendered through HTML::Template too.
+	unlike($source, qr/<TMPL_(?:VAR|IF|UNLESS|LOOP)\s*>/i, "$path has no nameless TMPL tag");
 	$referenced{$1} = 1 while $source =~ /<TMPL_(?:VAR|IF|UNLESS)\b[^>]*?\b((?:COMMON|VZLOGGER)\.[A-Z][A-Z0-9_]*)\b/gi;
 }
 

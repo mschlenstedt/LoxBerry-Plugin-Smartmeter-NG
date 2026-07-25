@@ -1,7 +1,7 @@
 <script>
 
 // Shared JavaScript for all tabs. Appended to every template, so it may use
-// <TMPL_VAR> for localized strings. Data comes from ajax.cgi (relative URL).
+// TMPL_VAR tags for localized strings. Data comes from ajax.cgi (relative URL).
 
 $(function() {
 	// I/R reading heads tab: run only when its markup is present.
