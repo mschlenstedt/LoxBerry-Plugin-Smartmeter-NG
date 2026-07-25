@@ -66,7 +66,7 @@ function irheadRenderManual(rows) {
 		return;
 	}
 	rows.forEach(function(r) {
-		var button = '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" data-device="' +
+		var button = '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" style="padding:1px 8px; font-size:15px; line-height:1.4;" data-device="' +
 			irheadEsc(r.device) + '" title="' + irheadEsc(irheadRemove_title) + '">&times;</button>';
 		body.append("<tr><td>" + irheadEsc(r.name) + "</td><td>" + irheadEsc(r.device) + "</td><td>" + button + "</td></tr>");
 	});
