@@ -27,25 +27,12 @@ cleanup_obsolete_language_files()
 		"$templatefolder/multi/en" "$templatefolder/multi/de" 2>/dev/null || true
 }
 
-migrate_config()
-{
-	# The configuration moved from INI to JSON. The Perl helper converts an
-	# existing smartmeter.cfg and applies all key-level migrations.
-	if ! "$ARGV5/bin/plugins/$ARGV3/migrate_config.pl" "$ARGV5/config/plugins/$ARGV3"; then
-		echo "<WARNING> Could not migrate the plugin configuration"
-	fi
-}
-
 echo "<INFO> Copy back existing config files"
 cp -v -r "/tmp/$ARGV1"_upgrade/config/"$ARGV3"/* "$ARGV5/config/plugins/$ARGV3/"
 
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_pkg.sh" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/watchdog.pl" 2>/dev/null || true
-chmod +x "$ARGV5/bin/plugins/$ARGV3/migrate_config.pl" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/config_value.pl" 2>/dev/null || true
-
-echo "<INFO> Migrate config files"
-migrate_config
 
 echo "<INFO> Remove obsolete language resources"
 cleanup_obsolete_language_files

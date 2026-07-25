@@ -75,46 +75,4 @@ ok(SmartMeterConfig->import_from($flat_file, \%flat), "import_from succeeds");
 is($flat{"MAIN.MQTTTOPIC"}, "1", "flat hash contains global keys");
 is($flat{"readerA.SERIAL"}, "readerA", "flat hash contains meter keys as <serial>.KEY");
 
-# The INI migration converts the old layout, including meter sections.
-my $migrate_dir = tempdir(CLEANUP => 1);
-open(my $ini, ">", "$migrate_dir/smartmeter.cfg") or die $!;
-print $ini <<'INI';
-[MAIN]
-IMPLEMENTATION=legacy
-READ=1
-CRON=5
-SENDMQTT=0
-[VZLOGGER]
-LOCALPORT=18080
-DEBUG=1
-[1ISK0001]
-SERIAL=1ISK0001
-METER=sml
-LEGACY_METER=sml
-INI
-close($ini);
-
-my $migrate = "$FindBin::Bin/../bin/migrate_config.pl";
-my $path_separator = $^O eq "MSWin32" ? ";" : ":";
-local $ENV{PERL5LIB} = "$FindBin::Bin/../.github/ci/perl-lib" . ($ENV{PERL5LIB} ? "$path_separator$ENV{PERL5LIB}" : "");
-my $rc = system($^X, $migrate, $migrate_dir);
-is($rc, 0, "migration runs successfully");
-
-my $migrated = SmartMeterConfig->new("$migrate_dir/smartmeter.json");
-ok($migrated, "migration produced a JSON configuration");
-is($migrated->param("MAIN.IMPLEMENTATION"), "none", "a stored Legacy mode becomes inactive");
-is($migrated->param("MAIN.CRON"), undef, "obsolete CRON is dropped");
-is($migrated->param("MAIN.READ"), undef, "the obsolete bridge activation switch is dropped");
-is($migrated->param("MAIN.SENDMQTT"), undef, "obsolete SENDMQTT is dropped");
-is($migrated->param("VZLOGGER.DEBUG"), undef, "obsolete bridge debug switch is dropped");
-is($migrated->param("1ISK0001.METER"), "sml", "meter settings survive the migration");
-is($migrated->param("1ISK0001.LEGACY_METER"), undef, "Legacy meter settings are dropped");
-is($migrated->param("VZLOGGER.LOCALPORT"), "18080", "existing vzLogger settings are kept");
-ok(-e "$migrate_dir/smartmeter.cfg.pre-json", "the original INI file is kept as a fallback");
-
-# Running the migration again must not change anything.
-is(system($^X, $migrate, $migrate_dir), 0, "migration is repeatable");
-is(SmartMeterConfig->new("$migrate_dir/smartmeter.json")->param("MAIN.IMPLEMENTATION"), "none",
-	"a second migration run keeps the result stable");
-
 done_testing();
