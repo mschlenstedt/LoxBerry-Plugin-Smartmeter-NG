@@ -52,8 +52,8 @@ function irheadRenderAuto(rows) {
 	rows.forEach(function(r) {
 		var hw = [r.vendor, r.model].filter(Boolean).join(" ");
 		body.append(
-			"<tr><td>" + irheadEsc(r.name) + "</td><td>" + irheadEsc(r.device) +
-			"</td><td>" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
+			"<tr><td>" + irheadEsc(r.name) + "</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.device) +
+			"</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
 			"</td><td>" + irheadEsc(r.usbport) + "</td><td>" + irheadEsc(hw) + "</td></tr>"
 		);
 	});
@@ -68,7 +68,7 @@ function irheadRenderManual(rows) {
 	rows.forEach(function(r) {
 		var button = '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" style="padding:1px 8px; font-size:15px; line-height:1.4;" data-device="' +
 			irheadEsc(r.device) + '" title="' + irheadEsc(irheadRemove_title) + '">&times;</button>';
-		body.append("<tr><td>" + irheadEsc(r.name) + "</td><td>" + irheadEsc(r.device) + "</td><td>" + button + "</td></tr>");
+		body.append("<tr><td>" + irheadEsc(r.name) + "</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.device) + "</td><td>" + button + "</td></tr>");
 	});
 }
 
