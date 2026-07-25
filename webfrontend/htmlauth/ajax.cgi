@@ -8,9 +8,11 @@ use strict;
 use warnings;
 use CGI;
 use JSON::PP;
-use FindBin;
 use LoxBerry::System;
-use lib "$FindBin::Bin/../../bin";
+# LoxBerry::System exports $lbpbindir (…/bin/plugins/<folder>), where the
+# plugin's Perl modules live. It is populated at compile time by the import
+# above, so the following "use lib" picks it up.
+use lib $lbpbindir;
 use SmartMeterIRHeads qw(sync_and_load add_manual remove_manual);
 
 my $cgi = CGI->new;
