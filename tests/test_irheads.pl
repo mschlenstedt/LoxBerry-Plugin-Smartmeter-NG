@@ -23,7 +23,8 @@ is_deeply($data->{auto}, [], "auto list starts empty");
 is_deeply($data->{manual}, [], "manual list starts empty");
 
 # usb_port_short extracts the port from a udev ID_PATH.
-is(usb_port_short("platform-xhci-hcd.0-usb-0:1.2:1.0"), "1.2", "USB port is extracted from ID_PATH");
+is(usb_port_short("platform-xhci-hcd.0-usb-0:1.2:1.0"), "1.2", "USB port is extracted from a tty-interface ID_PATH");
+is(usb_port_short("platform-fd500000.pcie-pci-0000:01:00.0-usb-0:1.4"), "1.4", "USB port is extracted from a device-level ID_PATH without interface suffix");
 is(usb_port_short(""), "", "empty ID_PATH yields empty port");
 is(usb_port_short("something-else"), "something-else", "unparsable ID_PATH falls back to the raw value");
 

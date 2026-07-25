@@ -64,13 +64,14 @@ sub device_info
 	return \%info;
 }
 
-# Shortens the udev ID_PATH to the USB port part, e.g.
-# "...-usb-0:1.2:1.0" -> "1.2". Falls back to the full value.
+# Shortens the udev ID_PATH to the USB port part. Handles both the tty
+# interface form "...-usb-0:1.4:1.0" -> "1.4" and the device form
+# "...-usb-0:1.4" -> "1.4". Falls back to the full value.
 sub usb_port_short
 {
 	my ($id_path) = @_;
 	return "" if (!defined($id_path) || $id_path eq "");
-	return $1 if ($id_path =~ /usb-\d+:([\d.]+):/);
+	return $1 if ($id_path =~ /usb-\d+:([\d.]+)/);
 	return $id_path;
 }
 
