@@ -1,0 +1,11 @@
+<div class="lb-content">
+
+<h2><TMPL_VAR VZLOGGER.USB_HEADING></h2>
+
+<h3><TMPL_VAR VZLOGGER.USB_DEVICES_LABEL></h3>
+<pre style="background:var(--lb-gray-50, #f4f4f4); padding:0.8em 1em; border-radius:4px; overflow-x:auto; font-size:0.85em;"><TMPL_VAR LSUSB ESCAPE=HTML></pre>
+
+<h3><TMPL_VAR VZLOGGER.USB_TREE_LABEL></h3>
+<pre style="background:var(--lb-gray-50, #f4f4f4); padding:0.8em 1em; border-radius:4px; overflow-x:auto; font-size:0.85em;"><TMPL_VAR LSUSB_TREE ESCAPE=HTML></pre>
+
+</div>

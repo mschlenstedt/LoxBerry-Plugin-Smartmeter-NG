@@ -78,6 +78,11 @@ sub form_logfiles
 
 sub preparetemplate
 {
+	# Append the shared JavaScript to every tab. It runs through HTML::Template
+	# too, so it can use <TMPL_VAR> for localized strings, and fetches its data
+	# from ajax.cgi.
+	$template .= LoxBerry::System::read_file("$lbptemplatedir/javascript.js");
+
 	$templateout = HTML::Template->new_scalar_ref(
 		\$template,
 		global_vars       => 1,

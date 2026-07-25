@@ -1,6 +1,60 @@
 <div class="lb-content">
 
 <h2><TMPL_VAR COMMON.TAB_IRHEADS></h2>
-<p><TMPL_VAR COMMON.TAB_PLACEHOLDER></p>
+
+<div class="lb-actions">
+	<button class="lb-btn" onclick="window.open('usb_devices.cgi', 'usbdevices', 'width=1000,height=750,scrollbars=yes,resizable=yes'); return false;"><TMPL_VAR VZLOGGER.IRHEAD_USB_BUTTON></button>
+</div>
+
+<h3><TMPL_VAR VZLOGGER.IRHEAD_AUTO_HEADING></h3>
+<div class="lb-table-responsive">
+<table class="lb-table">
+	<thead>
+		<tr>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_NAME></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_DEVICE></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_TTY></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_SERIAL></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_USBPORT></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_HARDWARE></th>
+		</tr>
+	</thead>
+	<tbody id="irheads-auto-body"></tbody>
+</table>
+</div>
+
+<h3><TMPL_VAR VZLOGGER.IRHEAD_MANUAL_HEADING></h3>
+<div class="lb-table-responsive">
+<table class="lb-table">
+	<thead>
+		<tr>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_NAME></th>
+			<th><TMPL_VAR VZLOGGER.IRHEAD_COL_DEVICE></th>
+			<th></th>
+		</tr>
+	</thead>
+	<tbody id="irheads-manual-body"></tbody>
+</table>
+</div>
+
+<h3><TMPL_VAR VZLOGGER.IRHEAD_ADD_HEADING></h3>
+<form id="irhead-add-form" onsubmit="irheadAdd(); return false;">
+	<div class="lb-form-row">
+		<label class="lb-form-label" for="irhead-device"><TMPL_VAR VZLOGGER.IRHEAD_DEVICE_LABEL></label>
+		<div class="lb-form-field">
+			<input class="lb-input" type="text" id="irhead-device" placeholder="/dev/ttyUSB0">
+		</div>
+	</div>
+	<div class="lb-form-row">
+		<label class="lb-form-label" for="irhead-name"><TMPL_VAR VZLOGGER.IRHEAD_NAME_LABEL></label>
+		<div class="lb-form-field">
+			<input class="lb-input" type="text" id="irhead-name">
+		</div>
+	</div>
+	<div class="lb-form-help hint"><TMPL_VAR VZLOGGER.IRHEAD_NAME_HELP></div>
+	<button class="lb-btn lb-btn-primary" type="submit"><TMPL_VAR VZLOGGER.IRHEAD_ADD_BUTTON></button>
+</form>
+
+<div id="irhead-status" class="lb-callout" style="display:none; margin-top:1em;"></div>
 
 </div>

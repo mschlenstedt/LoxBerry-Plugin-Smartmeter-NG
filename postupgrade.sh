@@ -41,6 +41,8 @@ echo "<INFO> Ensure executable permissions for vzLogger helper scripts"
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_config.pl" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_validate.pl" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_control.pl" 2>/dev/null || true
+chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/ajax.cgi" 2>/dev/null || true
+chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/usb_devices.cgi" 2>/dev/null || true
 chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/vzlogger_live.cgi" 2>/dev/null || true
 
 echo "<INFO> Copy back existing log files"

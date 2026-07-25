@@ -79,7 +79,9 @@ find(
 	{
 		no_chdir => 1,
 		wanted => sub {
-			push @template_paths, $File::Find::name if -f $_ && /\.html\z/;
+			# javascript.js is appended to every template and rendered through
+			# HTML::Template, so it uses <TMPL_VAR> for localized strings too.
+			push @template_paths, $File::Find::name if -f $_ && /\.(?:html|js)\z/;
 		},
 	},
 	"$repo/templates",

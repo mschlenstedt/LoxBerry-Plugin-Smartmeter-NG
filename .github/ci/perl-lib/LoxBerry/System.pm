@@ -24,6 +24,7 @@ sub pluginversion { return "0.0.0"; }
 sub lock { return undef; }
 sub unlock { return 1; }
 sub readlanguage { return (); }
+sub execute { my (%p) = @_; my $out = `$p{command} 2>&1`; return ($? >> 8, $out); }
 sub read_file { my ($f) = @_; open(my $fh, "<", $f) or return ""; local $/; my $c = <$fh>; close($fh); return $c; }
 
 1;
