@@ -1,8 +1,8 @@
 # Smartmeter-NG for LoxBerry
 
-Smartmeter-NG is a LoxBerry plugin for reading smart meters with optical I/R reading heads. It provides meter values through the plugin web frontend and can forward them by HTTP, UDP, and MQTT depending on the selected configuration.
+Smartmeter-NG is a LoxBerry plugin for reading smart meters through optical I/R reading heads and publishing their values by MQTT.
 
-The standard implementation uses the external `vzlogger` package. The plugin generates `vzlogger.conf`, enables vzLogger MQTT publishing, and maintains a local cache from the MQTT stream. HTTP and UDP output are served from this cache.
+The plugin drives the external `vzlogger` program: it provides a web frontend to configure meters and OBIS channels, generates and validates `vzlogger.conf`, and supervises the `vzlogger` process. vzLogger reads the meters and publishes each channel over MQTT itself; the LoxBerry MQTT Gateway forwards the values to the Miniserver.
 
 The former legacy Perl reader has been removed; it is only maintained in the `Version1` branch.
 
@@ -11,25 +11,24 @@ The former legacy Perl reader has been removed; it is only maintained in the `Ve
 - [English user guide](docs/User-Guide.en.md)
 - [Deutsche Benutzerdokumentation](docs/User-Guide.de.md)
 - [Documentation index](docs/Readme.md)
-- [Developer requirements](docs/developer-requirements.md)
-- [Release process](docs/release-process.md)
 
 ## Main Features
 
 - Detects optical I/R reading heads below `/dev/serial/smartmeter/`.
-- Generates and validates vzLogger configuration files.
-- Supports vzLogger MQTT publishing with a local SmartMeter cache.
-- Provides HTTP and UDP output from cached meter values.
-- Includes a bridge service for MQTT-to-cache processing.
-- Provides diagnostic logging for service state, generated config, channel mapping, bridge logs, cache files, and MQTT parser samples.
+- Generates and validates the vzLogger configuration from a web frontend, with SML, D0, OMS, and a custom JSONC mode.
+- Discovers OBIS channels and lets you name their MQTT output per reader.
+- Installs and updates the `vzlogger` package from the Volkszaehler repository (only the `vzlogger` binary, no other Volkszaehler components).
+- Runs `vzlogger` in the foreground from a plugin watchdog and restarts it after an unexpected exit.
+- Logs through LoxBerry's central log manager with a configurable log level.
+- Offers an optional live-reading view served by vzLogger's local HTTP endpoint.
 
-## Quick Links
+## MQTT Output
 
-- MQTT topic structure: `<base topic>/<meter>/<value name>`
-- Default MQTT base topic: `smartmeter`
-- UDP sends the same value set to all configured Miniservers.
-- HTTP access remains available through the plugin web frontend.
-- vzLogger live readings can optionally be opened through the local vzLogger HTTP daemon.
+- vzLogger publishes each channel at `<base topic>/<reader>/<output key>/raw`.
+- It also publishes `<...>/uuid` and `<...>/id` (the OBIS identifier) as retained messages, and `<...>/agg` when aggregation is enabled.
+- The default base topic is `smartmeter`.
+- The payload is the plain meter value, or a `{"timestamp":<ms>,"value":<number>}` object when timestamps are enabled.
+- Values are the raw meter readings; SML energy counters report Wh.
 
 ## Release Notes
 
@@ -37,4 +36,4 @@ See [CHANGELOG.md](CHANGELOG.md) for notable changes and release notes.
 
 ## Known Issues
 
-See [Known Issues](KNOWN-ISSUES.md) for confirmed limitations, known issues, and planned follow-up work that has not yet been implemented.
+See [Known Issues](KNOWN-ISSUES.md) for confirmed limitations and planned follow-up work.

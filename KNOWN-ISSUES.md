@@ -1,6 +1,6 @@
 # Known Issues And Compatibility Limitations
 
-This document tracks confirmed user-visible issues and compatibility limitations. Detailed implementation status and completed target evidence remain in `docs/vzlogger-implementation-plan.md`.
+This document tracks confirmed user-visible issues and compatibility limitations. Detailed implementation status is tracked in the development docs.
 
 ## Limited Target-Platform Coverage
 
@@ -10,7 +10,7 @@ Confirmed coverage:
 - Debian 13/trixie
 - arm64
 - vzLogger 0.8.9 from the configured Cloudsmith repository
-- Upgrade, disable/reactivate, uninstall, fresh install, service operation, SML/MQTT data flow, calculated power, HTTP cache, and UDP delivery were verified with Smartmeter-NG 2.0.0.32.
+- Earlier prereleases verified upgrade, disable/reactivate, uninstall, fresh install, and service operation on this platform. The MQTT-only data flow, the package helper, and the watchdog have not yet been verified on real hardware.
 
 Limitation:
 

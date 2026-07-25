@@ -27,7 +27,7 @@ Expected:
 - Installation completes successfully.
 - The active implementation is `vzlogger`.
 - Connected USB I/R heads are available below `/dev/serial/smartmeter/` before the first reboot.
-- The MQTT bridge is disabled.
+- vzLogger is not running until it is activated with a configured meter.
 - All optional logs and debug logs are disabled.
 
 ## Install Over Existing Version
@@ -54,5 +54,5 @@ Expected:
 - Deactivating either implementation without activating the other stops the corresponding runtime but does not regenerate `vzlogger.conf`.
 - Saving while vzLogger is already active remains an explicit request to regenerate and apply its configuration.
 - Concurrent configuration or service actions are rejected without partial writes.
-- Failed generation, validation, promotion, override installation, or service restart returns a non-zero control result and preserves the last valid generated runtime files.
-- Runtime, log, generated configuration, and serial-device permissions use only the existing `loxberry` and `_vzlogger` identities and do not require world-writable modes.
+- Failed generation, validation, promotion, or service restart returns a non-zero control result and preserves the last valid generated runtime files.
+- Runtime, log, generated configuration, and serial-device permissions use only the existing `loxberry` identity and do not require world-writable modes.

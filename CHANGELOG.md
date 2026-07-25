@@ -4,6 +4,8 @@ All notable user-visible changes should be documented in this file. Use the late
 
 ## Unreleased
 
+- Documentation and release housekeeping: exclude `tools/` and the developer-only docs from the release archive, rewrite `README.md` and the shipped documentation index for the MQTT-only architecture, correct `KNOWN-ISSUES.md`, bring `docs/developer-requirements.md` and `docs/lifecycle-test-expectations.md` up to date (watchdog instead of systemd, package helper, MQTT-only, no migration), and remove the outdated `docs/vzlogger-implementation-plan.md`.
+
 - Install vzlogger through a dedicated package helper (`bin/vzlogger_pkg.sh`) instead of the LoxBerry `dpkg/apt` list. The helper rewrites the repository key on every run so a rotated key cannot lock the plugin out, installs only the `vzlogger` package, keeps the packaged service from starting during installation via `policy-rc.d`, and disables and masks it afterwards. That is reapplied after every package update because the package postinst re-enables and unmasks the unit. The plugin page now shows the installed and available version and offers an update button.
 - Run vzlogger from a plugin watchdog (`bin/watchdog.pl --action=start|stop|restart|check|status`) instead of systemd. It starts `vzlogger -f` as the loxberry user, is started at boot from `daemon/daemon`, and is called every five minutes from `cron/cron.05min` to restart the process after an unexpected exit while respecting a manual stop. The systemd drop-in installer is gone, the generated configuration is owned by loxberry only, and sudoers shrinks from six rules to a single one for the package helper.
 
