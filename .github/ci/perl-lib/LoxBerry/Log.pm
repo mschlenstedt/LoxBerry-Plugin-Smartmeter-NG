@@ -51,4 +51,6 @@ for my $method (@LOG_METHODS) {
 	*{$method} = sub { return 1; };
 }
 
+sub get_notifications_html { return ""; }
+
 1;

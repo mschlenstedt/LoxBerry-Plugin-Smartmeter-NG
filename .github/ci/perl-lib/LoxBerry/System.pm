@@ -24,5 +24,6 @@ sub pluginversion { return "0.0.0"; }
 sub lock { return undef; }
 sub unlock { return 1; }
 sub readlanguage { return (); }
+sub read_file { my ($f) = @_; open(my $fh, "<", $f) or return ""; local $/; my $c = <$fh>; close($fh); return $c; }
 
 1;

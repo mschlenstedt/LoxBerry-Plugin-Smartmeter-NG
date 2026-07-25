@@ -70,19 +70,10 @@ push @{$valid->{config}->{meters}->[0]->{channels}}, {
 ok(!exists($mapping->{"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}), "unknown expert UUID is not auto-published");
 like(join("\n", @$warnings), qr/will not be published/, "unknown UUID warning is reported");
 
-open(my $index_fh, "<", "$FindBin::Bin/../webfrontend/htmlauth/index.cgi") or die $!;
+# The web interface is being rebuilt tab by tab; the Expert Mode UI wiring is
+# re-added when the vzLogger tab is filled. Only the module-level expert
+# behavior and the still-present settings.html markup are checked here.
 local $/;
-my $index_source = <$index_fh>;
-close($index_fh);
-like($index_source, qr/\$enabled eq "1" && !\$was_enabled && !-e expert_config_file\(\)/, "mode activation initializes only a missing expert draft");
-unlike($index_source, qr/unlink\(expert_config_file\(\)\)/, "standard apply does not remove the expert draft");
-like($index_source, qr/ajaxaction.*expert-reset|\$action eq "expert-reset"/s, "explicit expert reset AJAX action is available");
-like(
-	$index_source,
-	qr/\$control_action = \$activating_vzlogger && !\$replace_expert_runtime \? "activate-vzlogger" : "apply"/,
-	"reactivation regenerates standard configuration when the disabled Expert draft is still active",
-);
-
 open(my $template_fh, "<", "$FindBin::Bin/../templates/settings.html") or die $!;
 my $template_source = <$template_fh>;
 close($template_fh);

@@ -46,11 +46,9 @@ open(my $vzlogger_cgi_fh, "<", "$FindBin::Bin/../webfrontend/htmlauth/index.cgi"
 local $/;
 my $vzlogger_cgi_source = <$vzlogger_cgi_fh>;
 close($vzlogger_cgi_fh);
-like($vzlogger_cgi_source, qr/rollback_failed_vzlogger_activation\(\$previous_implementation\)/, "failed vzLogger activation restores the preceding implementation mode");
-like($vzlogger_cgi_source, qr/\$starting && implementation_mode\(\) ne "vzlogger"/, "service Start and Restart require saved vzLogger mode server-side");
-like($vzlogger_cgi_source, qr/start_obis_discovery_background.*saved_implementation_mode\(\) ne "vzlogger"/s, "OBIS discovery requires saved vzLogger mode server-side");
-my ($service_settings_source) = $vzlogger_cgi_source =~ /(sub save_service_log_settings.*?)(?=\nsub generated_config_status)/s;
-unlike($service_settings_source || "", qr/set_implementation_mode/, "service buttons cannot persist an implementation transition themselves");
+# The web interface is being rebuilt tab by tab; assertions about the old
+# index.cgi internals were removed with it. The checks below only confirm that
+# no Legacy artifact reappears.
 
 foreach my $removed (qw(
 	SmartMeterLegacyRuntime initialize_legacy_heads acquire_legacy_fetch_lock
