@@ -4,15 +4,26 @@
 # Called from ajax.cgi and usable from the shell / tests.
 #
 # Subcommands:
-#   get           Print the current vzlogger.conf as JSON. If it does not exist
-#                 yet, print a default skeleton (without creating the file).
-#   save [FILE]   Read a full configuration as JSON from FILE (or STDIN), force
-#                 the automatic parts (the MQTT connection is always taken from
-#                 the LoxBerry MQTT gateway, never from the UI), write
-#                 vzlogger.conf atomically, and print the stored result.
+#   get                  Print the current vzlogger.conf as JSON (a default
+#                        skeleton if none exists yet; the file is not created).
+#   save [FILE]          Read a full config from FILE/STDIN, keep the meters,
+#                        re-derive every automatic value, write atomically.
+#   set-settings [FILE]  Read a settings patch (retry, local.port, mqtt.topic)
+#                        from FILE/STDIN, apply it to the stored config (meters
+#                        untouched), re-derive automatics, write.
 #
-# Overridable via environment for tests:
-#   SMARTMETER_CONFIG_DIR, SMARTMETER_VZLOGGER_CONFIG_FILE, SMARTMETER_GENERAL_JSON
+# Only three values are user-controlled: mqtt.topic, local.port and retry.
+# Everything else is derived automatically on every write:
+#   verbosity  <- plugin loglevel (LoxBerry 0-7 mapped to vzlogger 0/1/3/5/10)
+#   log        <- the plugin's vzlogger log path
+#   local      <- enabled/index/timeout/buffer fixed; only port from the user
+#   mqtt       <- connection from LoxBerry::IO::mqtt_connectiondetails()
+#                 (host/port/user/pass/TLS); qos=0, retain=1, timestamp=1,
+#                 rawAndAgg=1, enabled=1, keepalive=30, id=smartmeter-ng-<uuid>
+#   push       <- never written (the plugin does not use the VZ middleware)
+#
+# Test overrides (env): SMARTMETER_CONFIG_DIR, SMARTMETER_VZLOGGER_CONFIG_FILE,
+#   SMARTMETER_GENERAL_JSON, SMARTMETER_MQTT_JSON, SMARTMETER_LOGLEVEL
 
 use strict;
 use warnings;
@@ -29,25 +40,41 @@ my $general_json = $ENV{SMARTMETER_GENERAL_JSON} || "$home/config/system/general
 my $action = shift(@ARGV) || "";
 
 if ($action eq "get") {
-	my $data = load_config() || default_skeleton();
-	print encode_config($data);
+	print encode_config(load_config() || skeleton());
 	exit 0;
 }
 if ($action eq "save") {
-	my $raw = read_input(shift(@ARGV));
-	my $incoming = eval { JSON::PP->new->relaxed->utf8->decode($raw) };
-	die "Invalid configuration JSON.\n" if ($@ || ref($incoming) ne "HASH");
-	my $data = merge_config($incoming);
+	my $incoming = decode_input(read_input(shift(@ARGV)), "configuration");
+	my $data = { %$incoming };
+	$data->{meters} = (ref($incoming->{meters}) eq "ARRAY") ? $incoming->{meters} : [];
+	enforce_auto($data);
+	save_config($data) or die "Could not write $config_file\n";
+	print encode_config($data);
+	exit 0;
+}
+if ($action eq "set-settings") {
+	my $patch = decode_input(read_input(shift(@ARGV)), "settings");
+	my $data = load_config() || skeleton();
+	apply_user_settings($data, $patch);
+	enforce_auto($data);
 	save_config($data) or die "Could not write $config_file\n";
 	print encode_config($data);
 	exit 0;
 }
 
-die "Usage: $0 get|save [FILE]\n";
+die "Usage: $0 get|save [FILE]|set-settings [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
 sub encode_config { return JSON::PP->new->utf8->canonical->pretty->encode($_[0]); }
+
+sub decode_input
+{
+	my ($raw, $what) = @_;
+	my $data = eval { JSON::PP->new->relaxed->utf8->decode($raw) };
+	die "Invalid $what JSON.\n" if ($@ || ref($data) ne "HASH");
+	return $data;
+}
 
 sub read_input
 {
@@ -63,16 +90,7 @@ sub read_input
 	return defined($raw) ? $raw : "";
 }
 
-sub load_config
-{
-	return undef if (!-e $config_file);
-	open(my $fh, "<", $config_file) or return undef;
-	local $/;
-	my $raw = <$fh>;
-	close($fh);
-	my $data = eval { JSON::PP->new->relaxed->utf8->decode(defined($raw) ? $raw : "") };
-	return (ref($data) eq "HASH") ? $data : undef;
-}
+sub load_config { return read_json_file($config_file, undef); }
 
 sub save_config
 {
@@ -95,95 +113,122 @@ sub make_path_for
 	File::Path::make_path($dir);
 }
 
-# Builds the full config from the incoming UI object: keep the user-managed
-# parts (meters, local, and the mqtt topic/qos/retain/... settings) but always
-# overwrite the MQTT connection with the current LoxBerry MQTT gateway details.
-sub merge_config
+# Applies the three user-controlled values from a patch; nothing else.
+sub apply_user_settings
 {
-	my ($incoming) = @_;
-	my $skeleton = default_skeleton();
-	my $data = { %$skeleton, %$incoming };
-	$data->{meters} = (ref($incoming->{meters}) eq "ARRAY") ? $incoming->{meters} : [];
-	$data->{local}  = merge_hash($skeleton->{local}, $incoming->{local});
-	$data->{mqtt}   = merge_hash($skeleton->{mqtt}, $incoming->{mqtt});
-	apply_gateway_mqtt($data->{mqtt});
+	my ($data, $patch) = @_;
+	$data->{retry} = $patch->{retry} if (exists $patch->{retry});
+	$data->{local} = {} if (ref($data->{local}) ne "HASH");
+	$data->{mqtt}  = {} if (ref($data->{mqtt}) ne "HASH");
+	$data->{local}{port} = $patch->{local}{port} if (ref($patch->{local}) eq "HASH" && exists $patch->{local}{port});
+	$data->{mqtt}{topic} = $patch->{mqtt}{topic} if (ref($patch->{mqtt}) eq "HASH" && exists $patch->{mqtt}{topic});
 	return $data;
 }
 
-sub merge_hash
+sub skeleton
 {
-	my ($base, $override) = @_;
-	my %out = %{ref($base) eq "HASH" ? $base : {}};
-	if (ref($override) eq "HASH") { $out{$_} = $override->{$_} for keys %$override; }
-	return \%out;
+	my $data = { retry => 30, meters => [] };
+	enforce_auto($data);
+	return $data;
 }
 
-# The MQTT connection is automatic and must not come from the UI.
-sub apply_gateway_mqtt
+# Re-derives every automatic value, keeping only retry, local.port, mqtt.topic
+# and the meters as user data.
+sub enforce_auto
 {
-	my ($mqtt) = @_;
-	my $gw = mqtt_from_gateway();
-	$mqtt->{host} = $gw->{host};
-	$mqtt->{port} = $gw->{port};
-	set_or_delete($mqtt, "user", $gw->{user});
-	set_or_delete($mqtt, "pass", $gw->{pass});
+	my ($data) = @_;
+	$data->{retry}     = clean_number($data->{retry}, 30);
+	$data->{verbosity} = auto_verbosity();
+	$data->{log}       = "$home/log/plugins/$psub/vzlogger.log";
+	delete $data->{push};
+	my $port = clean_number(ref($data->{local}) eq "HASH" ? $data->{local}{port} : undef, 18080);
+	$data->{local} = { enabled => JSON::PP::true, port => $port, index => JSON::PP::true, timeout => 30, buffer => -1 };
+	my $topic = (ref($data->{mqtt}) eq "HASH" && defined($data->{mqtt}{topic}) && $data->{mqtt}{topic} ne "")
+		? "$data->{mqtt}{topic}" : "smartmeter-ng";
+	$data->{mqtt} = auto_mqtt($topic);
+	$data->{meters} = [] if (ref($data->{meters}) ne "ARRAY");
+	return $data;
+}
+
+# vzlogger verbosity from the plugin's LoxBerry loglevel (0-7).
+sub auto_verbosity
+{
+	my %map = (0 => 0, 1 => 0, 2 => 1, 3 => 1, 4 => 3, 5 => 5, 6 => 5, 7 => 10);
+	my $ll = plugin_loglevel();
+	$ll = 3 if (!defined($ll) || $ll !~ /\A\d+\z/ || $ll > 7);
+	return $map{$ll};
+}
+
+sub plugin_loglevel
+{
+	return $ENV{SMARTMETER_LOGLEVEL} if (defined($ENV{SMARTMETER_LOGLEVEL}) && $ENV{SMARTMETER_LOGLEVEL} ne "");
+	my $ll = eval { LoxBerry::System::pluginloglevel($psub) };
+	return (defined($ll) && $ll =~ /\A\d+\z/) ? $ll : undef;
+}
+
+sub auto_mqtt
+{
+	my ($topic) = @_;
+	my $c = mqtt_connection();
+	my $tls  = $c->{tls} ? 1 : 0;
+	my $host = (defined($c->{brokerhost}) && $c->{brokerhost} ne "") ? "$c->{brokerhost}" : "127.0.0.1";
+	my $port = $tls ? clean_number($c->{tls_brokerport}, 8883) : clean_number($c->{brokerport}, 1883);
+	my $uuid = loxberry_uuid();
+	my $mqtt = {
+		enabled   => JSON::PP::true,
+		host      => $host,
+		port      => $port,
+		id        => "smartmeter-ng" . ($uuid ne "" ? "-$uuid" : ""),
+		topic     => "$topic",
+		qos       => 0,
+		retain    => JSON::PP::true,
+		timestamp => JSON::PP::true,
+		rawAndAgg => JSON::PP::true,
+		keepalive => 30,
+	};
+	set_or_delete($mqtt, "user", $c->{brokeruser});
+	set_or_delete($mqtt, "pass", $c->{brokerpass});
+	set_or_delete($mqtt, "cafile", $tls ? $c->{tls_cafile} : undef);
 	return $mqtt;
+}
+
+# MQTT broker connection from the LoxBerry gateway (self-signed TLS -> the API
+# returns tls_verify=0 and the local CA file, which is what we point vzlogger to).
+sub mqtt_connection
+{
+	if (defined($ENV{SMARTMETER_MQTT_JSON}) && -e $ENV{SMARTMETER_MQTT_JSON}) {
+		return read_json_file($ENV{SMARTMETER_MQTT_JSON}, {});
+	}
+	my $c = eval { require LoxBerry::IO; LoxBerry::IO::mqtt_connectiondetails(); };
+	return (ref($c) eq "HASH") ? $c : {};
+}
+
+# The unique LoxBerry installation id (general.json -> Ssdp.Uuid).
+sub loxberry_uuid
+{
+	my $g = read_json_file($general_json, {});
+	return "" if (ref($g->{Ssdp}) ne "HASH");
+	my $u = $g->{Ssdp}{Uuid};
+	return (defined($u) && !ref($u)) ? "$u" : "";
+}
+
+sub read_json_file
+{
+	my ($file, $default) = @_;
+	return $default if (!defined($file) || !-e $file);
+	open(my $fh, "<", $file) or return $default;
+	local $/;
+	my $raw = <$fh>;
+	close($fh);
+	my $data = eval { JSON::PP->new->relaxed->utf8->decode(defined($raw) ? $raw : "") };
+	return (ref($data) eq "HASH") ? $data : $default;
 }
 
 sub set_or_delete
 {
 	my ($hash, $key, $value) = @_;
-	if (defined($value) && $value ne "") { $hash->{$key} = "$value"; }
+	if (defined($value) && !ref($value) && $value ne "") { $hash->{$key} = "$value"; }
 	else { delete $hash->{$key}; }
-}
-
-sub default_skeleton
-{
-	my $mqtt = {
-		enabled   => JSON::PP::true,
-		topic     => "smartmeter",
-		qos       => 0,
-		retain    => JSON::PP::true,
-		keepalive => 30,
-	};
-	apply_gateway_mqtt($mqtt);
-	return {
-		retry     => 30,
-		verbosity => 0,
-		log       => "/dev/null",
-		local     => { enabled => JSON::PP::true, port => 18080, index => JSON::PP::true, timeout => 30, buffer => -1 },
-		mqtt      => $mqtt,
-		meters    => [],
-	};
-}
-
-# Reads the MQTT broker connection from the LoxBerry MQTT gateway
-# (config/system/general.json -> Mqtt section).
-sub mqtt_from_gateway
-{
-	my %s = (host => "127.0.0.1", port => 1883, user => "", pass => "");
-	return \%s if (!-e $general_json);
-	open(my $fh, "<", $general_json) or return \%s;
-	local $/;
-	my $raw = <$fh>;
-	close($fh);
-	my $general = eval { JSON::PP->new->relaxed->utf8->decode(defined($raw) ? $raw : "") };
-	return \%s if ($@ || ref($general) ne "HASH" || ref($general->{Mqtt}) ne "HASH");
-	my $m = $general->{Mqtt};
-	$s{host} = first_value($m, qw(Host Hostname Broker Brokerhost Server IpAddress Ipaddress)) || $s{host};
-	$s{port} = clean_number(first_value($m, qw(Port Brokerport Mqttport)), $s{port});
-	$s{user} = first_value($m, qw(Brokeruser Brokerusername User Username Login)) || "";
-	$s{pass} = first_value($m, qw(Brokerpass Brokerpassword Pass Password)) || "";
-	return \%s;
-}
-
-sub first_value
-{
-	my ($hash, @keys) = @_;
-	foreach my $key (@keys) {
-		return $hash->{$key} if (defined($hash->{$key}) && !ref($hash->{$key}) && $hash->{$key} ne "");
-	}
-	return undef;
 }
 
 sub clean_number

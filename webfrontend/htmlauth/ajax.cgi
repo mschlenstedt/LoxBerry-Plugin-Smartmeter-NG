@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use CGI;
 use JSON::PP;
+use File::Temp qw(tempfile);
 use LoxBerry::System;
 # LoxBerry::System exports $lbpbindir (…/bin/plugins/<folder>), where the
 # plugin's Perl modules live. It is populated at compile time by the import
@@ -65,6 +66,24 @@ sub vz_conf_get
 	return { ok => JSON::PP::true, config => $config };
 }
 
+# Applies a settings patch (retry, local.port, mqtt.topic) by handing it to the
+# helper via a temporary file. Returns the stored config for the UI.
+sub vz_set_settings
+{
+	my ($json) = @_;
+	my $patch = eval { JSON::PP->new->decode(defined($json) ? $json : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($@ || ref($patch) ne "HASH");
+	my ($fh, $tmp) = eval { tempfile("vzsettings-XXXXXX", DIR => $lbpconfigdir, SUFFIX => ".json", UNLINK => 0) };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if (!$tmp);
+	print $fh JSON::PP->new->utf8->encode($patch);
+	close($fh);
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_conf.pl set-settings '$tmp' 2>/dev/null");
+	unlink($tmp);
+	my $config = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($rc != 0 || $@ || ref($config) ne "HASH");
+	return { ok => JSON::PP::true, config => $config };
+}
+
 if ($action eq "irheads-list") {
 	$response = { ok => JSON::PP::true, head_lists() };
 }
@@ -97,6 +116,9 @@ elsif ($action eq "vz-stop") {
 }
 elsif ($action eq "vzconf-get") {
 	$response = vz_conf_get();
+}
+elsif ($action eq "vzconf-set-settings") {
+	$response = is_post() ? vz_set_settings($q->{settings}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
 else {
 	$response = { ok => JSON::PP::false, error_key => "UI_UNKNOWN_ACTION" };

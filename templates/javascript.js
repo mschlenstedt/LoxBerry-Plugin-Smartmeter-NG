@@ -44,6 +44,13 @@ $(function() {
 		smServiceStatus();
 		smInterval = window.setInterval(smServiceStatus, 5000);
 	}
+
+	// Settings tab: load current values, then auto-save on blur (like the
+	// Audioserver4Home gateway settings). Config changes need a service restart.
+	if (document.getElementById("settings-form")) {
+		$("#set-topic, #set-localport, #set-retry").on("blur", setSaveSettings);
+		setLoad();
+	}
 });
 
 // ============================================================ I/R READING HEADS
@@ -222,5 +229,44 @@ function smServiceRun(action) {
 
 function smServiceRestart() { smServiceRun("vz-restart"); }
 function smServiceStop() { smServiceRun("vz-stop"); }
+
+// =========================================================== SETTINGS TAB
+
+var setMsg = {
+	SAVING:        "<TMPL_VAR COMMON.HINT_SAVING>",
+	SAVING_FAILED: "<TMPL_VAR COMMON.HINT_SAVING_FAILED>",
+	SAVED_RESTART: "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
+};
+var setAutosave = false;
+
+function setLoad() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vzconf-get" } })
+		.done(function(data) {
+			if (data && data.ok && data.config) {
+				var mqtt = data.config.mqtt || {};
+				var local = data.config.local || {};
+				$("#set-topic").val(mqtt.topic || "");
+				$("#set-localport").val(local.port || "");
+				$("#set-retry").val(data.config.retry != null ? data.config.retry : "");
+			}
+		})
+		.always(function() { setAutosave = true; });
+}
+
+function setSaveSettings() {
+	if (!setAutosave) return;
+	var patch = {
+		retry: $("#set-retry").val(),
+		local: { port: $("#set-localport").val() },
+		mqtt:  { topic: $("#set-topic").val() }
+	};
+	$("#set-savinghint").attr("style", "color:blue").html(smEsc(setMsg.SAVING));
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-set-settings", settings: JSON.stringify(patch) } })
+		.done(function(data) {
+			if (data && data.ok) { $("#set-savinghint").attr("style", "color:orange").html(smEsc(setMsg.SAVED_RESTART)); }
+			else { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); }
+		})
+		.fail(function() { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); });
+}
 
 </script>
