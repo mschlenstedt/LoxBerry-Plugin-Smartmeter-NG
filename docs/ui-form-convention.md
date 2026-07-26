@@ -35,9 +35,13 @@ Markup-Muster (statisch im Template; Werte kommen per Ajax/JS):
 
 ## 2. vzLogger-Service-Status-Block
 
-Wird oben auf **jedem Tab außer Live-Daten und Logdateien** angezeigt: farbiges
-Status-Badge (grün „läuft"/rot „gestoppt"/grau „unbekannt") mit Haken/Kreuz-Icon
-und PID, daneben zwei Buttons **Neu starten** und **Stoppen**, darunter `<hr>`.
+Wird oben auf **jedem Tab außer Live-Daten und Logdateien** angezeigt. Er
+reproduziert **exakt** den Gateway-Service-Block aus Audioserver4Home: zentriert
+Label + Status-Icon (Original-Bilder `check_20/error_20/unknown_20.png`) + eine
+Status-Box, die auf Grün (`#6dac20`, „PID: n") bzw. Orange (`#FF6339`,
+„gestoppt") umschaltet, daneben zwei graue Icon-Buttons **(Neu-)Starten** und
+**Stoppen**, darunter `<hr>`. Nachbau per eigenem CSS (`.vzsvc*`), weil wir das
+LoxBerry DS (nojqm) statt jQuery Mobile nutzen.
 
 Einbindung: im Template genügt der Mountpunkt
 

@@ -8,14 +8,15 @@
 // form label (linking into the Volkszaehler wiki).
 (function() {
 	var css =
-		".sm-service{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}" +
-		".sm-service-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}" +
-		".sm-service-label{font-weight:600;}" +
-		".sm-service-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:14px;font-size:0.9rem;color:#fff;}" +
-		".sm-service-badge-ok{background:#4a9e2f;}" +
-		".sm-service-badge-off{background:#d9534f;}" +
-		".sm-service-badge-unknown{background:#8a8a8a;}" +
-		".sm-service-btns{display:flex;gap:6px;flex-wrap:wrap;}" +
+		".vzsvc{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;text-shadow:none;padding:6px 0;}" +
+		".vzsvc-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;}" +
+		".vzsvc-btns{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-items:center;}" +
+		".vzsvc-label{color:var(--lb-text);}" +
+		".vzsvc-box{padding:7px 12px;box-sizing:border-box;border-radius:5px;background:#dfdfdf;border:1px solid #7E7E7E;min-width:130px;max-width:100%;text-align:center;color:#333;}" +
+		".vzsvc-small{font-size:80%;}" +
+		".vzsvc-btn{display:inline-flex;align-items:center;gap:8px;background:#f6f6f6;border:1px solid #ddd;border-radius:5px;padding:6px 12px;color:#333;font-size:12.5px;font-weight:bold;line-height:1;text-decoration:none;cursor:pointer;}" +
+		".vzsvc-btn:hover{background:#ededed;}" +
+		".vzsvc-ico{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;font-size:12px;}" +
 		".sm-help{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;background:#8a8a8a;color:#fff;font-size:12px;line-height:1;text-decoration:none;vertical-align:middle;}" +
 		".sm-help:hover{background:#6f6f6f;}";
 	var style = document.createElement("style");
@@ -41,7 +42,7 @@ $(function() {
 	if (document.getElementById("vz-service")) {
 		smServiceRender();
 		smServiceStatus();
-		window.setInterval(smServiceStatus, 5000);
+		smInterval = window.setInterval(smServiceStatus, 5000);
 	}
 });
 
@@ -141,12 +142,18 @@ function irheadRemove(device) {
 }
 
 // ============================================================ vzLOGGER SERVICE
+// Faithful reproduction of the Audioserver4Home gateway service block: a centred
+// label, a status icon image and a coloured status box (grey "unknown", green
+// with "PID: n" when running, orange "stopped") plus two grey icon buttons.
+// Built with our own CSS because we run the LoxBerry Design System (nojqm), not
+// jQuery Mobile; the status icons are the original Audioserver4Home images.
+
+var smInterval = null;
 
 var smSvc = {
 	LABEL:   "<TMPL_VAR COMMON.SERVICE_LABEL>",
 	RESTART: "<TMPL_VAR COMMON.SERVICE_RESTART>",
 	STOP:    "<TMPL_VAR COMMON.SERVICE_STOP>",
-	RUNNING: "<TMPL_VAR COMMON.SERVICE_RUNNING>",
 	STOPPED: "<TMPL_VAR COMMON.SERVICE_STOPPED>",
 	UNKNOWN: "<TMPL_VAR COMMON.SERVICE_UNKNOWN>",
 	WORKING: "<TMPL_VAR COMMON.SERVICE_WORKING>",
@@ -159,51 +166,58 @@ function smEsc(value) {
 
 function smServiceRender() {
 	document.getElementById("vz-service").innerHTML =
-		'<div class="sm-service">' +
-			'<div class="sm-service-info">' +
-				'<span class="sm-service-label">' + smEsc(smSvc.LABEL) + '</span>' +
-				'<span class="sm-service-badge sm-service-badge-unknown" id="sm-service-badge">' +
-					'<i class="pi pi-question-circle"></i> <span>' + smEsc(smSvc.UNKNOWN) + '</span>' +
-				'</span>' +
+		'<div class="vzsvc">' +
+			'<div class="vzsvc-info">' +
+				'<div class="vzsvc-label">' + smEsc(smSvc.LABEL) + '</div>' +
+				'<div id="vz-svc-icon"><img src="images/unknown_20.png" alt=""></div>' +
+				'<div class="vzsvc-box" id="vz-svc-box">' + smEsc(smSvc.UNKNOWN) + '</div>' +
 			'</div>' +
-			'<div class="sm-service-btns">' +
-				'<button type="button" class="lb-btn lb-btn-sm lb-btn-primary" onclick="smServiceRestart(); return false;">' + smEsc(smSvc.RESTART) + '</button>' +
-				'<button type="button" class="lb-btn lb-btn-sm" onclick="smServiceStop(); return false;">' + smEsc(smSvc.STOP) + '</button>' +
+			'<div class="vzsvc-btns">' +
+				'<a href="#" class="vzsvc-btn" onclick="smServiceRestart(); return false;"><span class="vzsvc-ico"><i class="pi pi-check"></i></span>' + smEsc(smSvc.RESTART) + '</a>' +
+				'<a href="#" class="vzsvc-btn" onclick="smServiceStop(); return false;"><span class="vzsvc-ico"><i class="pi pi-times"></i></span>' + smEsc(smSvc.STOP) + '</a>' +
 			'</div>' +
 		'</div><hr>';
 }
 
-function smServiceBadge(kind, text) {
-	var icon = kind === "ok" ? "pi-check-circle" : (kind === "off" ? "pi-times-circle" : "pi-question-circle");
-	$("#sm-service-badge")
-		.removeClass("sm-service-badge-ok sm-service-badge-off sm-service-badge-unknown")
-		.addClass("sm-service-badge-" + kind)
-		.html('<i class="pi ' + icon + '"></i> <span>' + smEsc(text) + '</span>');
+function smServiceIcon(name) {
+	$("#vz-svc-icon").html('<img src="images/' + name + '" alt="">');
+}
+
+function smServiceBox(style, html) {
+	$("#vz-svc-box").attr("style", style).html(html);
+}
+
+function smServiceFailed() {
+	smServiceBox("background:#dfdfdf; color:red", smEsc(smSvc.FAILED));
+	smServiceIcon("unknown_20.png");
 }
 
 function smServiceShow(data) {
-	if (data && data.ok) {
-		if (data.running) {
-			smServiceBadge("ok", smSvc.RUNNING + (data.pid ? " · PID " + data.pid : ""));
-		} else {
-			smServiceBadge("off", smSvc.STOPPED);
-		}
+	if (data && data.ok && data.running && data.pid) {
+		smServiceBox("background:#6dac20; color:black", '<span class="vzsvc-small">PID: ' + smEsc(data.pid) + '</span>');
+		smServiceIcon("check_20.png");
+	} else if (data && data.ok) {
+		smServiceBox("background:#FF6339; color:black", smEsc(smSvc.STOPPED));
+		smServiceIcon("error_20.png");
 	} else {
-		smServiceBadge("unknown", smSvc.FAILED);
+		smServiceFailed();
 	}
 }
 
 function smServiceStatus() {
 	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vz-status" } })
 		.done(smServiceShow)
-		.fail(function() { smServiceBadge("unknown", smSvc.FAILED); });
+		.fail(smServiceFailed);
 }
 
 function smServiceRun(action) {
-	smServiceBadge("unknown", smSvc.WORKING);
+	clearInterval(smInterval);
+	smServiceBox("color:blue", smEsc(smSvc.WORKING));
+	smServiceIcon("unknown_20.png");
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action } })
 		.done(smServiceShow)
-		.fail(function() { smServiceBadge("unknown", smSvc.FAILED); });
+		.fail(smServiceFailed)
+		.always(function() { smInterval = window.setInterval(smServiceStatus, 5000); });
 }
 
 function smServiceRestart() { smServiceRun("vz-restart"); }
