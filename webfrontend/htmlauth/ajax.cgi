@@ -55,6 +55,16 @@ sub vz_service_action
 	return vz_status();
 }
 
+# Returns the current vzlogger.conf (or its default skeleton) as a structure the
+# UI can render. The MQTT connection is filled automatically by the helper.
+sub vz_conf_get
+{
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_conf.pl get 2>/dev/null");
+	my $config = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($@ || ref($config) ne "HASH");
+	return { ok => JSON::PP::true, config => $config };
+}
+
 if ($action eq "irheads-list") {
 	$response = { ok => JSON::PP::true, head_lists() };
 }
@@ -84,6 +94,9 @@ elsif ($action eq "vz-restart") {
 }
 elsif ($action eq "vz-stop") {
 	$response = is_post() ? vz_service_action("stop") : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-get") {
+	$response = vz_conf_get();
 }
 else {
 	$response = { ok => JSON::PP::false, error_key => "UI_UNKNOWN_ACTION" };
