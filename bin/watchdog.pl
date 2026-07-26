@@ -41,6 +41,15 @@ my ($verbose, $action);
 GetOptions("verbose=s" => \$verbose, "action=s" => \$action);
 $action = "" if (!defined($action));
 
+# Lightweight, unlogged status probe for the web interface, which polls it every
+# few seconds. Prints the running vzlogger PID (empty line if not running) and
+# exits without opening a log session or taking the watchdog lock.
+if ($action eq "pid") {
+	my $pid = vzlogger_running() ? (read_pid() || find_vzlogger_pid() || "") : "";
+	print "$pid\n";
+	exit 0;
+}
+
 my $log = LoxBerry::Log->new(name => "watchdog", package => $psubfolder);
 if ($verbose) {
 	$log->stdout(1);

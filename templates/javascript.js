@@ -3,6 +3,26 @@
 // Shared JavaScript for all tabs. Appended to every template, so it may use
 // TMPL_VAR tags for localized strings. Data comes from ajax.cgi (relative URL).
 
+// Inject shared styles that are not part of the LoxBerry Design System: the
+// vzLogger service-status block and the grey "?" help button placed next to a
+// form label (linking into the Volkszaehler wiki).
+(function() {
+	var css =
+		".sm-service{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}" +
+		".sm-service-info{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}" +
+		".sm-service-label{font-weight:600;}" +
+		".sm-service-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:14px;font-size:0.9rem;color:#fff;}" +
+		".sm-service-badge-ok{background:#4a9e2f;}" +
+		".sm-service-badge-off{background:#d9534f;}" +
+		".sm-service-badge-unknown{background:#8a8a8a;}" +
+		".sm-service-btns{display:flex;gap:6px;flex-wrap:wrap;}" +
+		".sm-help{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;background:#8a8a8a;color:#fff;font-size:12px;line-height:1;text-decoration:none;vertical-align:middle;}" +
+		".sm-help:hover{background:#6f6f6f;}";
+	var style = document.createElement("style");
+	style.textContent = css;
+	document.head.appendChild(style);
+})();
+
 $(function() {
 	// I/R reading heads tab: run only when its markup is present.
 	if ($("#irheads-auto-body").length) {
@@ -14,6 +34,14 @@ $(function() {
 		$(document).on("click", ".irhead-remove", function() {
 			irheadRemove($(this).data("device"));
 		});
+	}
+
+	// vzLogger service status block: present on every tab except Live data and
+	// Log files (those templates omit the #vz-service mount point).
+	if (document.getElementById("vz-service")) {
+		smServiceRender();
+		smServiceStatus();
+		window.setInterval(smServiceStatus, 5000);
 	}
 });
 
@@ -111,5 +139,74 @@ function irheadRemove(device) {
 		})
 		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, false); });
 }
+
+// ============================================================ vzLOGGER SERVICE
+
+var smSvc = {
+	LABEL:   "<TMPL_VAR COMMON.SERVICE_LABEL>",
+	RESTART: "<TMPL_VAR COMMON.SERVICE_RESTART>",
+	STOP:    "<TMPL_VAR COMMON.SERVICE_STOP>",
+	RUNNING: "<TMPL_VAR COMMON.SERVICE_RUNNING>",
+	STOPPED: "<TMPL_VAR COMMON.SERVICE_STOPPED>",
+	UNKNOWN: "<TMPL_VAR COMMON.SERVICE_UNKNOWN>",
+	WORKING: "<TMPL_VAR COMMON.SERVICE_WORKING>",
+	FAILED:  "<TMPL_VAR COMMON.SERVICE_FAILED>"
+};
+
+function smEsc(value) {
+	return $("<div>").text(value == null ? "" : value).html();
+}
+
+function smServiceRender() {
+	document.getElementById("vz-service").innerHTML =
+		'<div class="sm-service">' +
+			'<div class="sm-service-info">' +
+				'<span class="sm-service-label">' + smEsc(smSvc.LABEL) + '</span>' +
+				'<span class="sm-service-badge sm-service-badge-unknown" id="sm-service-badge">' +
+					'<i class="pi pi-question-circle"></i> <span>' + smEsc(smSvc.UNKNOWN) + '</span>' +
+				'</span>' +
+			'</div>' +
+			'<div class="sm-service-btns">' +
+				'<button type="button" class="lb-btn lb-btn-sm lb-btn-primary" onclick="smServiceRestart(); return false;">' + smEsc(smSvc.RESTART) + '</button>' +
+				'<button type="button" class="lb-btn lb-btn-sm" onclick="smServiceStop(); return false;">' + smEsc(smSvc.STOP) + '</button>' +
+			'</div>' +
+		'</div><hr>';
+}
+
+function smServiceBadge(kind, text) {
+	var icon = kind === "ok" ? "pi-check-circle" : (kind === "off" ? "pi-times-circle" : "pi-question-circle");
+	$("#sm-service-badge")
+		.removeClass("sm-service-badge-ok sm-service-badge-off sm-service-badge-unknown")
+		.addClass("sm-service-badge-" + kind)
+		.html('<i class="pi ' + icon + '"></i> <span>' + smEsc(text) + '</span>');
+}
+
+function smServiceShow(data) {
+	if (data && data.ok) {
+		if (data.running) {
+			smServiceBadge("ok", smSvc.RUNNING + (data.pid ? " · PID " + data.pid : ""));
+		} else {
+			smServiceBadge("off", smSvc.STOPPED);
+		}
+	} else {
+		smServiceBadge("unknown", smSvc.FAILED);
+	}
+}
+
+function smServiceStatus() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vz-status" } })
+		.done(smServiceShow)
+		.fail(function() { smServiceBadge("unknown", smSvc.FAILED); });
+}
+
+function smServiceRun(action) {
+	smServiceBadge("unknown", smSvc.WORKING);
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action } })
+		.done(smServiceShow)
+		.fail(function() { smServiceBadge("unknown", smSvc.FAILED); });
+}
+
+function smServiceRestart() { smServiceRun("vz-restart"); }
+function smServiceStop() { smServiceRun("vz-stop"); }
 
 </script>
