@@ -114,7 +114,6 @@ foreach my $path (@runtime_paths) {
 	my $source = slurp_utf8($path);
 	unlike($source, qr{load_plugin_language|T::|(?:en|de)/language\.txt|language\.dat}, "$path contains no obsolete language loader or alias");
 	$referenced{$3} = 1 while $source =~ /\$([A-Za-z_]\w*)\s*->\s*\{\s*(["'])((?:COMMON|VZLOGGER)\.[A-Z][A-Z0-9_]*)\2\s*\}/g;
-	$referenced{$2} = 1 while $source =~ /(["'])(VZLOGGER\.(?:EXPERT|CHANNEL)_VALID_[A-Z0-9_]+)\1/g;
 
 	my $readlanguage_count = () = $source =~ /LoxBerry::System::readlanguage\s*\(/g;
 	next if !$readlanguage_count;
@@ -149,29 +148,8 @@ foreach my $old_path (
 	ok(!-e $old_path, "$old_path was removed");
 }
 
-like($german->{'COMMON.PLEASE_SELECT'}, qr/auswählen/, "German resources retain UTF-8 umlauts");
-like($german->{'VZLOGGER.IR_HEADS'}, qr/Zähler/, "German vzLogger text retains UTF-8 umlauts");
-is(
-	$english->{'VZLOGGER.CHANNEL_API_TAGS_HELP'},
-	'Optional InfluxDB tags as a JSON object, for example {"meter":"main"}.',
-	"embedded JSON quotes are parsed without visible escape backslashes",
-);
-like($english->{'VZLOGGER.MQTT_BASE_TOPIC_HELP'}, qr/&lt;base&gt;/, "HTML entities remain intact");
-
-my $live_cgi = slurp_utf8("$repo/webfrontend/htmlauth/vzlogger_live.cgi");
-unlike($live_cgi, qr/vzLogger Live-Daten|Daten werden geladen|Kanal-Metadaten konnten/, "live-data CGI contains no embedded German UI phrases");
-my $config_cgi = slurp_utf8("$repo/webfrontend/htmlauth/vzlogger_config.cgi");
-unlike($config_cgi, qr/HTTP_ACCEPT_LANGUAGE|\$german\b|Configuration saved|Konfiguration gespeichert/, "configuration CGI uses native resources instead of manual bilingual text");
-my $settings_template = slurp_utf8("$repo/templates/settings.html");
-unlike($settings_template, qr/>None<|>Odd<|>Even<|-Protocol\)/, "visible choices and protocol suffix are localized");
-
-my $meter_templates = JSON::PP->new->decode(slurp_utf8("$repo/templates/meter_templates.json"));
-my ($generic_sml) = grep { ($_->{id} || "") eq "genericsml" } @$meter_templates;
-is($generic_sml->{label_de}, "Allgemeines SML", "generic SML template has a German display label");
-is($generic_sml->{label_en}, "Generic SML", "generic SML template has an English display label");
-
-my $expert_source = slurp_utf8("$repo/bin/SmartMeterVZLoggerExpert.pm");
-like($expert_source, qr/Expert vzLogger configuration validation passed\./, "default technical validator output remains English");
+like($german->{'COMMON.TAB_IRHEADS'}, qr/Leseköpfe/, "German resources retain UTF-8 umlauts");
+like($german->{'VZLOGGER.IRHEAD_AUTO_HEADING'}, qr/Leseköpfe/, "German vzLogger text retains UTF-8 umlauts");
 
 my %fallback;
 parse_language_content("[TEST]\nSHARED=Deutsch\n", \%fallback, "foreign fixture");

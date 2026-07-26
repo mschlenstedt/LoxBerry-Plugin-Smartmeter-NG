@@ -32,9 +32,13 @@ my $template;
 my $templateout;
 my %L;
 
-if ($q->{form} eq "vzlogger") {
-	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_vzlogger.html");
-	&form_vzlogger();
+if ($q->{form} eq "smartmeter") {
+	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_smartmeter.html");
+	&form_smartmeter();
+}
+elsif ($q->{form} eq "settings") {
+	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_settings.html");
+	&form_settings();
 }
 elsif ($q->{form} eq "upgrade") {
 	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_upgrade.html");
@@ -60,10 +64,11 @@ exit;
 # Tab forms (empty scaffolding for now)
 ##########################################################################
 
-sub form_irheads  { &preparetemplate(); return(); }
-sub form_vzlogger { &preparetemplate(); return(); }
-sub form_upgrade  { &preparetemplate(); return(); }
-sub form_livedata { &preparetemplate(); return(); }
+sub form_irheads    { &preparetemplate(); return(); }
+sub form_smartmeter { &preparetemplate(); return(); }
+sub form_settings   { &preparetemplate(); return(); }
+sub form_upgrade    { &preparetemplate(); return(); }
+sub form_livedata   { &preparetemplate(); return(); }
 
 sub form_logfiles
 {
@@ -98,21 +103,25 @@ sub preparetemplate
 	$navbar{10}{URL}    = 'index.cgi?form=irheads';
 	$navbar{10}{active} = 1 if ($q->{form} eq "irheads");
 
-	$navbar{20}{Name}   = $L{'COMMON.TAB_VZLOGGER'};
-	$navbar{20}{URL}    = 'index.cgi?form=vzlogger';
-	$navbar{20}{active} = 1 if ($q->{form} eq "vzlogger");
+	$navbar{20}{Name}   = $L{'COMMON.TAB_SMARTMETER'};
+	$navbar{20}{URL}    = 'index.cgi?form=smartmeter';
+	$navbar{20}{active} = 1 if ($q->{form} eq "smartmeter");
 
-	$navbar{30}{Name}   = $L{'COMMON.TAB_UPGRADE'};
-	$navbar{30}{URL}    = 'index.cgi?form=upgrade';
-	$navbar{30}{active} = 1 if ($q->{form} eq "upgrade");
+	$navbar{30}{Name}   = $L{'COMMON.TAB_SETTINGS'};
+	$navbar{30}{URL}    = 'index.cgi?form=settings';
+	$navbar{30}{active} = 1 if ($q->{form} eq "settings");
 
-	$navbar{40}{Name}   = $L{'COMMON.TAB_LIVEDATA'};
-	$navbar{40}{URL}    = 'index.cgi?form=livedata';
-	$navbar{40}{active} = 1 if ($q->{form} eq "livedata");
+	$navbar{40}{Name}   = $L{'COMMON.TAB_UPGRADE'};
+	$navbar{40}{URL}    = 'index.cgi?form=upgrade';
+	$navbar{40}{active} = 1 if ($q->{form} eq "upgrade");
 
-	$navbar{50}{Name}   = $L{'COMMON.TAB_LOGFILES'};
-	$navbar{50}{URL}    = 'index.cgi?form=logfiles';
-	$navbar{50}{active} = 1 if ($q->{form} eq "logfiles");
+	$navbar{50}{Name}   = $L{'COMMON.TAB_LIVEDATA'};
+	$navbar{50}{URL}    = 'index.cgi?form=livedata';
+	$navbar{50}{active} = 1 if ($q->{form} eq "livedata");
+
+	$navbar{60}{Name}   = $L{'COMMON.TAB_LOGFILES'};
+	$navbar{60}{URL}    = 'index.cgi?form=logfiles';
+	$navbar{60}{active} = 1 if ($q->{form} eq "logfiles");
 
 	return();
 }

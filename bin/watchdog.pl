@@ -22,15 +22,14 @@ use warnings;
 use Getopt::Long;
 use File::Path qw(make_path);
 use POSIX qw(setsid);
+use JSON::PP;
 use FindBin;
 use lib $FindBin::Bin;
 use LoxBerry::System;
 use LoxBerry::Log;
-use SmartMeterConfig;
 
 my $psubfolder = $lbpplugindir;
 my $config_dir = "$lbhomedir/config/plugins/$psubfolder";
-my $plugin_config_file = "$config_dir/smartmeter.json";
 my $vzlogger_config = "$config_dir/vzlogger.conf";
 my $runtime_dir = "/var/run/shm/$psubfolder";
 my $pid_file = "$runtime_dir/vzlogger.pid";
@@ -215,11 +214,24 @@ sub do_check
 	return do_start();
 }
 
+# vzLogger is considered "active" when its generated configuration exists and
+# contains at least one enabled meter. There is no separate on/off flag anymore
+# (the vzlogger.conf is the single source of truth).
 sub vzlogger_mode_enabled
 {
-	my $cfg = SmartMeterConfig->new($plugin_config_file);
-	return 0 if (!$cfg);
-	return (($cfg->param("MAIN.IMPLEMENTATION") || "") eq "vzlogger") ? 1 : 0;
+	return 0 if (!-e $vzlogger_config);
+	open(my $fh, "<", $vzlogger_config) or return 0;
+	local $/;
+	my $raw = <$fh>;
+	close($fh);
+	my $data = eval { JSON::PP->new->relaxed->decode($raw) };
+	return 0 if (!$data || ref($data->{meters}) ne "ARRAY");
+	foreach my $meter (@{$data->{meters}}) {
+		next if (ref($meter) ne "HASH");
+		my $enabled = $meter->{enabled};
+		return 1 if (JSON::PP::is_bool($enabled) ? $enabled : (defined($enabled) && !ref($enabled) && $enabled && $enabled ne "0"));
+	}
+	return 0;
 }
 
 sub vzlogger_binary

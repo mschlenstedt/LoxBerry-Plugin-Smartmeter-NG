@@ -32,18 +32,13 @@ cp -v -r "/tmp/$ARGV1"_upgrade/config/"$ARGV3"/* "$ARGV5/config/plugins/$ARGV3/"
 
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_pkg.sh" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/watchdog.pl" 2>/dev/null || true
-chmod +x "$ARGV5/bin/plugins/$ARGV3/config_value.pl" 2>/dev/null || true
 
 echo "<INFO> Remove obsolete language resources"
 cleanup_obsolete_language_files
 
-echo "<INFO> Ensure executable permissions for vzLogger helper scripts"
-chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_config.pl" 2>/dev/null || true
-chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_validate.pl" 2>/dev/null || true
-chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_control.pl" 2>/dev/null || true
+echo "<INFO> Ensure executable permissions for web frontend scripts"
 chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/ajax.cgi" 2>/dev/null || true
 chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/usb_devices.cgi" 2>/dev/null || true
-chmod +x "$ARGV5/webfrontend/htmlauth/plugins/$ARGV3/vzlogger_live.cgi" 2>/dev/null || true
 
 echo "<INFO> Copy back existing log files"
 if [ -d "/tmp/$ARGV1"_upgrade/log/"$ARGV3" ]; then

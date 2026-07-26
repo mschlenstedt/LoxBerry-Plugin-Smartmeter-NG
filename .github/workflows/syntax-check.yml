@@ -35,11 +35,6 @@ jobs:
             libjson-perl \
             php-cli
 
-      - name: Set up Node.js for browser-model tests
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
       - name: Check Perl syntax
         shell: bash
         run: |
@@ -78,28 +73,17 @@ jobs:
             [ ! -f "$file" ] || sh -n "$file"
           done
 
-      - name: Run vzLogger configuration tests
+      - name: Run plugin tests
         shell: bash
         run: |
           set -euo pipefail
 
-          perl -I .github/ci/perl-lib -I bin tests/test_config.pl
           perl -I .github/ci/perl-lib -I bin tests/test_irheads.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_channels.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_generator.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_validator.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_expert.pl
           perl tests/test_language_resources.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_runtime.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_custom_channels.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_config_validation.pl
 
       - name: Test test-device file normalization
         shell: pwsh
         run: ./tests/test_deploy_line_endings.ps1
-
-      - name: Test vzLogger live chart model
-        run: node tests/test_vzlogger_live.js
 
       - name: Verify vendored Chart.js
         run: sha256sum --check webfrontend/htmlauth/vendor/chart.js/chart.umd.min.js.sha256
