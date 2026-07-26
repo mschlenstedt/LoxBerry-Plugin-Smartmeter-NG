@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Smartmeter mit WLAN-Anbindung">
+  <title>Smartmeter Integration</title>
+
+  <!-- Hintergrund -->
+  <rect width="512" height="512" rx="114" fill="#49DE80"/>
+
+  <!-- Segmentierter Aussenring -->
+  <g fill="none" stroke="#08120B" stroke-width="38.3" stroke-linecap="butt">
+      <path d="M 123.66 187.11 A 149.20 149.20 0 0 0 106.80 256.00"/>
+      <path d="M 176.38 129.82 A 149.20 149.20 0 0 0 129.82 176.38"/>
+      <path d="M 250.14 106.92 A 149.20 149.20 0 0 0 186.53 123.96"/>
+      <path d="M 325.47 123.96 A 149.20 149.20 0 0 0 261.86 106.92"/>
+      <path d="M 382.18 176.38 A 149.20 149.20 0 0 0 335.62 129.82"/>
+      <path d="M 405.08 250.14 A 149.20 149.20 0 0 0 388.04 186.53"/>
+      <path d="M 388.04 325.47 A 149.20 149.20 0 0 0 405.08 261.86"/>
+      <path d="M 335.62 382.18 A 149.20 149.20 0 0 0 382.18 335.62"/>
+      <path d="M 256.00 405.20 A 149.20 149.20 0 0 0 324.89 388.34"/>
+  </g>
+
+  <!-- Zifferblattring -->
+  <path d="M 250.55 359.96 A 104.10 104.10 0 1 0 152.04 261.45" fill="none" stroke="#08120B" stroke-width="10.7" stroke-linecap="butt"/>
+
+  <!-- Teilstriche -->
+  <g fill="none" stroke="#08120B" stroke-width="10.5" stroke-linecap="round">
+      <path d="M 256.00 347.00 L 256.00 355.00"/>
+      <path d="M 301.50 334.81 L 305.50 341.74"/>
+      <path d="M 334.81 301.50 L 341.74 305.50"/>
+      <path d="M 347.00 256.00 L 355.00 256.00"/>
+      <path d="M 334.81 210.50 L 341.74 206.50"/>
+      <path d="M 301.50 177.19 L 305.50 170.26"/>
+      <path d="M 256.00 165.00 L 256.00 157.00"/>
+      <path d="M 210.50 177.19 L 206.50 170.26"/>
+      <path d="M 177.19 210.50 L 170.26 206.50"/>
+      <path d="M 165.00 256.00 L 157.00 256.00"/>
+  </g>
+
+  <!-- Anzeigebalken -->
+  <rect x="199" y="288" width="88" height="24" fill="#08120B"/>
+
+  <!-- Zeiger und Achse -->
+  <path d="M 256.00 256.00 L 284.60 206.46" fill="none" stroke="#08120B" stroke-width="10.5" stroke-linecap="round"/>
+  <circle cx="256.0" cy="256.0" r="13.7" fill="#08120B"/>
+
+  <!-- Badge unten links: Freistellung, Scheibe, WLAN-Symbol -->
+  <circle cx="155.9" cy="355.45" r="80.3" fill="#49DE80"/>
+  <circle cx="155.9" cy="355.45" r="67.6" fill="#08120B"/>
+  <g fill="none" stroke="#49DE80" stroke-width="12" stroke-linecap="round">
+      <path d="M 143.17 366.77 A 18 18 0 0 1 168.63 366.77"/>
+      <path d="M 129.74 353.34 A 37 37 0 0 1 182.06 353.34"/>
+      <path d="M 116.30 339.90 A 56 56 0 0 1 195.50 339.90"/>
+  </g>
+  <circle cx="155.9" cy="384.0" r="9.5" fill="#49DE80"/>
+</svg>
