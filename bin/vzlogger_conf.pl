@@ -23,7 +23,7 @@
 #   push       <- never written (the plugin does not use the VZ middleware)
 #
 # Test overrides (env): SMARTMETER_CONFIG_DIR, SMARTMETER_VZLOGGER_CONFIG_FILE,
-#   SMARTMETER_GENERAL_JSON, SMARTMETER_MQTT_JSON, SMARTMETER_LOGLEVEL
+#   SMARTMETER_MQTT_JSON, SMARTMETER_LOXBERRYID_FILE, SMARTMETER_LOGLEVEL
 
 use strict;
 use warnings;
@@ -35,7 +35,7 @@ my $home         = $lbhomedir;
 my $psub         = $lbpplugindir;
 my $config_dir   = $ENV{SMARTMETER_CONFIG_DIR} || "$home/config/plugins/$psub";
 my $config_file  = $ENV{SMARTMETER_VZLOGGER_CONFIG_FILE} || "$config_dir/vzlogger.conf";
-my $general_json = $ENV{SMARTMETER_GENERAL_JSON} || "$home/config/system/general.json";
+my $loxberryid_file = $ENV{SMARTMETER_LOXBERRYID_FILE} || "$lbsconfigdir/loxberryid.cfg";
 
 my $action = shift(@ARGV) || "";
 
@@ -203,13 +203,18 @@ sub mqtt_connection
 	return (ref($c) eq "HASH") ? $c : {};
 }
 
-# The unique LoxBerry installation id (general.json -> Ssdp.Uuid).
+# The unique LoxBerry installation id (config/system/loxberryid.cfg, created by
+# the core's setloxberryid.pl). The file only exists when the user enabled
+# send-statistics; without it the client id stays "smartmeter-ng".
 sub loxberry_uuid
 {
-	my $g = read_json_file($general_json, {});
-	return "" if (ref($g->{Ssdp}) ne "HASH");
-	my $u = $g->{Ssdp}{Uuid};
-	return (defined($u) && !ref($u)) ? "$u" : "";
+	return "" if (!-e $loxberryid_file);
+	open(my $fh, "<", $loxberryid_file) or return "";
+	my $id = <$fh>;
+	close($fh);
+	return "" if (!defined($id));
+	$id =~ s/^\s+|\s+$//g;
+	return $id;
 }
 
 sub read_json_file

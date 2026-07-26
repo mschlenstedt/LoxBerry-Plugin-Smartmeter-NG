@@ -22,12 +22,12 @@ sub write_file
 
 # A plain (non-TLS) LoxBerry MQTT gateway and a unique installation id.
 write_file("$dir/mqtt.json", '{"brokerhost":"mqtt.example","brokerport":1884,"brokeruser":"gwuser","brokerpass":"gwpass","tls":0}');
-write_file("$dir/general.json", '{"Ssdp":{"Uuid":"LB-UUID-123"}}');
+write_file("$dir/loxberryid.cfg", "LB-UUID-123\n");
 
-$ENV{SMARTMETER_CONFIG_DIR}   = $dir;
-$ENV{SMARTMETER_MQTT_JSON}    = "$dir/mqtt.json";
-$ENV{SMARTMETER_GENERAL_JSON} = "$dir/general.json";
-$ENV{SMARTMETER_LOGLEVEL}     = 6;
+$ENV{SMARTMETER_CONFIG_DIR}      = $dir;
+$ENV{SMARTMETER_MQTT_JSON}       = "$dir/mqtt.json";
+$ENV{SMARTMETER_LOXBERRYID_FILE} = "$dir/loxberryid.cfg";
+$ENV{SMARTMETER_LOGLEVEL}        = 6;
 
 sub run_conf
 {
@@ -68,6 +68,11 @@ ok($sk->{mqtt}{rawAndAgg}, "rawAndAgg is on");
 is($sk->{mqtt}{id}, "smartmeter-ng-LB-UUID-123", "client id carries the LoxBerry uuid");
 ok(!exists $sk->{push}, "push is never written");
 is(ref($sk->{meters}), "ARRAY", "meters is an array");
+
+# Without a loxberryid.cfg (send-statistics off) the client id stays plain.
+$ENV{SMARTMETER_LOXBERRYID_FILE} = "$dir/does-not-exist.cfg";
+is(get_skeleton()->{mqtt}{id}, "smartmeter-ng", "client id falls back to smartmeter-ng without a LoxBerry id");
+$ENV{SMARTMETER_LOXBERRYID_FILE} = "$dir/loxberryid.cfg";
 
 # save keeps the meter but forces the automatic MQTT connection.
 write_file("$dir/in.json", JSON::PP->new->encode({

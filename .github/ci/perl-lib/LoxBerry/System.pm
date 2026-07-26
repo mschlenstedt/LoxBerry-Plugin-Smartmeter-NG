@@ -8,6 +8,7 @@ our $lbpbindir = '/opt/loxberry/bin/plugins/smartmeter-ng';
 our $lbpconfigdir = '/opt/loxberry/config/plugins/smartmeter-ng';
 our $lbptemplatedir = '/opt/loxberry/templates/plugins/smartmeter-ng';
 our $lbplogdir = '/opt/loxberry/log/plugins/smartmeter-ng';
+our $lbsconfigdir = '/opt/loxberry/config/system';
 
 sub import {
 	my $caller = caller;
@@ -18,6 +19,7 @@ sub import {
 	*{"${caller}::lbpconfigdir"} = \$lbpconfigdir;
 	*{"${caller}::lbptemplatedir"} = \$lbptemplatedir;
 	*{"${caller}::lbplogdir"} = \$lbplogdir;
+	*{"${caller}::lbsconfigdir"} = \$lbsconfigdir;
 }
 
 sub pluginversion { return "0.0.0"; }
