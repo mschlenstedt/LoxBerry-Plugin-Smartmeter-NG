@@ -29,7 +29,12 @@ Markup-Muster (statisch im Template; Werte kommen per Ajax/JS):
   DS-Klassen. `lb-form-help` sitzt automatisch in der Feldspalte.
 - `.sm-help` wird von `templates/javascript.js` per injiziertem `<style>`
   definiert (grauer Kreis mit „?"). Das ist das Pendant zum kleinen Icon-Button
-  im I/R-Köpfe-Tab, hier grau und als Wiki-Link.
+  im I/R-Köpfe-Tab, hier grau und als Wiki-Link. `.lb-form-label` ist auf
+  `white-space:nowrap` gesetzt, damit der „?"-Button nie in eine zweite Zeile
+  umbricht (Labels kurz halten).
+- **Wiki-Anchor immer setzen:** die vzLogger-Parameterseite hat die Anker
+  `#root`, `#local`, `#mqtt`, `#meters` (unter `#meters` weitere). Auf den
+  passenden Abschnitt verlinken, nicht nur auf die Seite.
 - Für Dropdowns `lb-select`, für Textareas `lb-textarea` verwenden. Enum-Werte
   und Defaults stammen aus `docs/analyse-vzlogger-config-format.md`.
 

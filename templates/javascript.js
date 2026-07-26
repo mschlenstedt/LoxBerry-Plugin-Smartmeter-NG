@@ -17,8 +17,9 @@
 		".vzsvc-btn{display:inline-flex;align-items:center;gap:8px;background:#f6f6f6;border:1px solid #ddd;border-radius:5px;padding:6px 12px;color:#333;font-size:12.5px;font-weight:bold;line-height:1;text-decoration:none;cursor:pointer;}" +
 		".vzsvc-btn:hover{background:#ededed;}" +
 		".vzsvc-ico{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.3);color:#fff;font-size:12px;}" +
-		".sm-help{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;background:#8a8a8a;color:#fff;font-size:12px;line-height:1;text-decoration:none;vertical-align:middle;}" +
-		".sm-help:hover{background:#6f6f6f;}";
+		".sm-help{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:6px;padding:0;border-radius:50%;background:#8a8a8a;color:#fff;font-size:12px;line-height:1;text-decoration:none;vertical-align:middle;flex:none;}" +
+		".sm-help:hover{background:#6f6f6f;}" +
+		".lb-form-label{white-space:nowrap;}";
 	var style = document.createElement("style");
 	style.textContent = css;
 	document.head.appendChild(style);
@@ -183,7 +184,7 @@ function smServiceRender() {
 				'<a href="#" class="vzsvc-btn" onclick="smServiceRestart(); return false;"><span class="vzsvc-ico"><i class="pi pi-check"></i></span>' + smEsc(smSvc.RESTART) + '</a>' +
 				'<a href="#" class="vzsvc-btn" onclick="smServiceStop(); return false;"><span class="vzsvc-ico"><i class="pi pi-times"></i></span>' + smEsc(smSvc.STOP) + '</a>' +
 			'</div>' +
-		'</div><hr>';
+		'</div><hr><br>';
 }
 
 function smServiceIcon(name) {

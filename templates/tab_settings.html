@@ -5,19 +5,19 @@
 <form id="settings-form" onsubmit="return false;">
 
 	<div class="lb-form-row">
-		<label class="lb-form-label" for="set-topic"><TMPL_VAR VZLOGGER.SET_TOPIC> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+		<label class="lb-form-label" for="set-topic"><TMPL_VAR VZLOGGER.SET_TOPIC> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#mqtt" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 		<div class="lb-form-field"><input class="lb-input" type="text" id="set-topic"></div>
 		<div class="lb-form-help"><TMPL_VAR VZLOGGER.SET_TOPIC_HELP></div>
 	</div>
 
 	<div class="lb-form-row">
-		<label class="lb-form-label" for="set-localport"><TMPL_VAR VZLOGGER.SET_LOCALPORT> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+		<label class="lb-form-label" for="set-localport"><TMPL_VAR VZLOGGER.SET_LOCALPORT> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#local" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 		<div class="lb-form-field"><input class="lb-input" type="number" id="set-localport" min="1" max="65535"></div>
 		<div class="lb-form-help"><TMPL_VAR VZLOGGER.SET_LOCALPORT_HELP></div>
 	</div>
 
 	<div class="lb-form-row">
-		<label class="lb-form-label" for="set-retry"><TMPL_VAR VZLOGGER.SET_RETRY> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+		<label class="lb-form-label" for="set-retry"><TMPL_VAR VZLOGGER.SET_RETRY> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#root" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 		<div class="lb-form-field"><input class="lb-input" type="number" id="set-retry" min="1"></div>
 		<div class="lb-form-help"><TMPL_VAR VZLOGGER.SET_RETRY_HELP></div>
 	</div>
