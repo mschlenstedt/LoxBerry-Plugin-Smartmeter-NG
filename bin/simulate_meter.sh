@@ -13,16 +13,22 @@
 #   SMARTMETER_SIM_DEVICE   device path to expose (default /dev/ttySmartmeterSim)
 #   SMARTMETER_SIM_INTERVAL seconds between telegrams (default 2)
 #
-# Then, in the plugin:
-#   1. I/R heads tab -> add a manual head with the printed device path.
-#   2. Smartmeter tab -> add an SML meter on it (baudrate 9600, parity 8n1).
-#      Auto-discovery reads the simulated stream on save.
+# The device is created under /dev/serial/smartmeter/ (the same location as the
+# udev rule), so the plugin auto-detects it in the I/R heads tab. Then create an
+# SML meter on it (baudrate 9600, parity 8n1); auto-discovery reads the stream on
+# save.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEVICE="${SMARTMETER_SIM_DEVICE:-/dev/ttySmartmeterSim}"
+DEVICE="${SMARTMETER_SIM_DEVICE:-/dev/serial/smartmeter/SIM}"
 INTERVAL="${SMARTMETER_SIM_INTERVAL:-2}"
+
+# Must run as root: the virtual device is created under /dev.
+if [ "$(id -u)" -ne 0 ]; then
+	echo "This script must be run as root (sudo): the virtual device is created under /dev/serial/smartmeter/."
+	exit 1
+fi
 
 # Locate the SML dump: explicit argument, installed data dir, or repo checkout.
 DUMP="${1:-}"
@@ -47,12 +53,14 @@ echo "Simulated meter device : $DEVICE"
 echo "SML dump               : $DUMP ($(wc -c < "$DUMP") bytes)"
 echo "Telegram interval      : ${INTERVAL}s   (Ctrl-C to stop)"
 echo
-echo "In the plugin: add a manual I/R head with device '$DEVICE', then create an"
-echo "SML meter on it (baudrate 9600, parity 8n1)."
+echo "The plugin auto-detects it in the I/R heads tab. Create an SML meter on it"
+echo "(baudrate 9600, parity 8n1); auto-discovery reads the stream on save."
 echo
 
 # Persistent virtual serial pair: bytes written to $FEED appear on $DEVICE, which
-# is made readable for the loxberry user (vzLogger runs as loxberry).
+# is placed in the udev-rule directory and made readable for the loxberry user
+# (vzLogger runs as loxberry).
+mkdir -p "$(dirname "$DEVICE")"
 socat PTY,link="$FEED",raw,echo=0 PTY,link="$DEVICE",raw,echo=0,mode=0660,group=loxberry &
 SOCAT_PID=$!
 sleep 1
