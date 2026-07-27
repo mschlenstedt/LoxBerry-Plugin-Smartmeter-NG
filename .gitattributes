@@ -7,6 +7,9 @@
 *.cgi text eol=lf
 *.sh  text eol=lf
 
+# Binary test fixtures must never be line-ending normalized.
+*.dmp binary
+
 # Custom for Visual Studio
 *.cs     diff=csharp
 

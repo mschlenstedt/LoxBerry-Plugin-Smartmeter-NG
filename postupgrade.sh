@@ -34,6 +34,7 @@ chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_pkg.sh" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/watchdog.pl" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_conf.pl" 2>/dev/null || true
 chmod +x "$ARGV5/bin/plugins/$ARGV3/vzlogger_discover.pl" 2>/dev/null || true
+chmod +x "$ARGV5/bin/plugins/$ARGV3/simulate_meter.sh" 2>/dev/null || true
 
 echo "<INFO> Remove obsolete language resources"
 cleanup_obsolete_language_files
