@@ -6,18 +6,21 @@
 # systemd service, so the plugin owns its lifecycle. The packaged systemd unit
 # is disabled by bin/vzlogger_pkg.sh.
 #
-# Usage: watchdog.pl --action=start|stop|stop-discovery|restart|check|status [--verbose]
+# Usage: watchdog.pl --action=start|stop|stop-discovery|end-discovery|restart|check|status [--verbose]
 #
 #   start           start vzlogger unless it is already running
 #   stop            stop vzlogger and remember that this was intentional
-#   stop-discovery  stop vzlogger WITHOUT the marker (used by OBIS discovery to
-#                   free the device; a following "check" restarts it)
+#   stop-discovery  stop vzlogger and set the autodiscovery marker (not the
+#                   manual one), so OBIS discovery can hold the device and a
+#                   cron "check" does not restart it in the meantime
+#   end-discovery   clear the autodiscovery marker and restart vzlogger (unless
+#                   it had been stopped manually)
 #   restart         stop, then start
 #   check           restart vzlogger if it died unexpectedly (called from cron)
 #   status          exit 0 if vzlogger is running, 1 otherwise
 #
-# A manual stop writes a marker file so the periodic check does not start the
-# process again behind the user's back. stop-discovery does not write it.
+# Two markers gate the periodic check: the manual-stop marker (written by "stop")
+# and the autodiscovery marker. A manual/boot start clears both.
 
 use strict;
 use warnings;
@@ -36,6 +39,11 @@ my $vzlogger_config = "$config_dir/vzlogger.conf";
 my $runtime_dir = "/var/run/shm/$psubfolder";
 my $pid_file = "$runtime_dir/vzlogger.pid";
 my $stopped_marker = "$config_dir/vzlogger_stopped.cfg";
+# While OBIS discovery runs, the main vzlogger is stopped without the manual
+# marker but with this one, so a cron "check" does not race and restart it and
+# grab the device. It is cleared on end-discovery, on a manual start and at boot.
+my $autodiscovery_marker = "$config_dir/vzlogger_autodiscovery.cfg";
+my $autodiscovery_stale = 120;
 my $failure_file = "$runtime_dir/vzlogger_watchdog_failures";
 my $max_failures = 5;
 
@@ -74,13 +82,14 @@ if ($lockstate) {
 my $exit = 0;
 if ($action eq "start") { $exit = do_start(); }
 elsif ($action eq "stop") { $exit = do_stop(1); }
-elsif ($action eq "stop-discovery") { $exit = do_stop(0); }
+elsif ($action eq "stop-discovery") { write_marker($autodiscovery_marker); $exit = do_stop(0); }
+elsif ($action eq "end-discovery") { unlink($autodiscovery_marker); $exit = do_check(); }
 elsif ($action eq "restart") { $exit = do_restart(); }
 elsif ($action eq "check") { $exit = do_check(); }
 elsif ($action eq "status") { $exit = vzlogger_running() ? 0 : 1; }
 else {
-	LOGERR("No valid action. --action=start|stop|stop-discovery|restart|check|status is required.");
-	print "No valid action specified. --action=start|stop|stop-discovery|restart|check|status is required.\n";
+	LOGERR("No valid action. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.");
+	print "No valid action specified. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.\n";
 	$exit = 2;
 }
 
@@ -90,7 +99,9 @@ exit $exit;
 
 sub do_start
 {
+	# A manual/boot start hard-clears both markers.
 	unlink($stopped_marker) if (-e $stopped_marker);
+	unlink($autodiscovery_marker) if (-e $autodiscovery_marker);
 
 	if (vzlogger_running()) {
 		LOGOK("vzlogger is already running.");
@@ -205,6 +216,17 @@ sub do_check
 	if (-e $stopped_marker) {
 		LOGOK("vzlogger was stopped manually. Nothing to do.");
 		return 0;
+	}
+	# Do not restart while OBIS discovery holds the device. A stale marker (e.g.
+	# discovery was killed) is cleaned up so the service is not stuck forever.
+	if (-e $autodiscovery_marker) {
+		my $age = time - (stat($autodiscovery_marker))[9];
+		if ($age < $autodiscovery_stale) {
+			LOGOK("OBIS discovery is running. Nothing to do.");
+			return 0;
+		}
+		LOGWARN("Stale autodiscovery marker (${age}s old). Removing it.");
+		unlink($autodiscovery_marker);
 	}
 	if (!vzlogger_mode_enabled()) {
 		LOGOK("vzLogger mode is not active. Nothing to do.");
@@ -340,3 +362,10 @@ sub write_failures
 }
 
 sub reset_failures { unlink($failure_file) if (-e $failure_file); }
+
+sub write_marker
+{
+	my ($file) = @_;
+	my $fh;
+	if (open($fh, ">", $file)) { print $fh "1\n"; close($fh); }
+}

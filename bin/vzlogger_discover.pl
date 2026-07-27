@@ -106,8 +106,9 @@ if ($bin) {
 
 unlink($cfg_file);
 
-# Restart the main service (does nothing if the user had manually stopped it).
-run_quiet("$watchdog --action=check");
+# Clear the autodiscovery marker and restart the main service (does nothing if
+# the user had manually stopped it).
+run_quiet("$watchdog --action=end-discovery");
 
 $log->LOGEND("OBIS auto-discovery finished");
 

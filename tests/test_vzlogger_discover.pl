@@ -20,6 +20,7 @@ print $fh <<'LOG';
 <AutoDiscovery Haus> Reading: id=1-0:1.8.0*255/1-0:1.8.0*255 value=12345.67 ts=1700000000000
 <AutoDiscovery Haus> Reading: id=1-0:16.7.0*255/1-0:16.7.0*255 value=421.00 ts=1700000000000
 <AutoDiscovery Haus> Reading: id=1-0:1.8.0*255/1-0:1.8.0*255 value=12345.70 ts=1700000001000
+<AutoDiscovery Haus> Reading: id=1-0:99.99.99*255/1-0:99.99.99*255 value=1.00 ts=1700000000000
 <AutoDiscovery Haus> a line without any reading
 LOG
 close($fh);
@@ -30,10 +31,12 @@ my $cmd = join(" ", map { "'$_'" } ($^X, "-I", $lib, "-I", $bin, $script, "--par
 my $res = JSON::PP->new->decode(`$cmd`);
 ok($res->{ok}, "parse-only succeeds");
 my @ch = @{$res->{channels}};
-is(scalar(@ch), 2, "two distinct OBIS identifiers are found (duplicates collapsed)");
+is(scalar(@ch), 3, "distinct OBIS identifiers are found (duplicates collapsed)");
 my %by = map { $_->{identifier} => $_->{name} } @ch;
 is($by{"1-0:1.8.0"}, "Consumption_Total", "catalog output_name is used for 1-0:1.8.0");
 ok(exists $by{"1-0:16.7.0"}, "1-0:16.7.0 is discovered");
 ok(!exists $by{"1-0:1.8.0*255"}, "the *255 storage suffix is stripped");
+# Not in the catalog: the OBIS code itself becomes the name (MQTT-safe).
+is($by{"1-0:99.99.99"}, "1-0_99_99_99", "an unknown OBIS falls back to its sanitized code as the name");
 
 done_testing();
