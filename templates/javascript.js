@@ -78,23 +78,28 @@ var irheadMsg = {
 	UI_IRHEAD_INVALID_NAME:   "<TMPL_VAR VZLOGGER.UI_IRHEAD_INVALID_NAME>",
 	UI_IRHEAD_DUPLICATE:      "<TMPL_VAR VZLOGGER.UI_IRHEAD_DUPLICATE>",
 	UI_IRHEAD_NOT_FOUND:      "<TMPL_VAR VZLOGGER.UI_IRHEAD_NOT_FOUND>",
+	UI_IRHEAD_DEVICE_MISSING: "<TMPL_VAR VZLOGGER.UI_IRHEAD_DEVICE_MISSING>",
 	UI_POST_REQUIRED:         "<TMPL_VAR VZLOGGER.UI_POST_REQUIRED>",
 	UI_UNKNOWN_ACTION:        "<TMPL_VAR VZLOGGER.UI_UNKNOWN_ACTION>",
 	UI_AJAX_FAILED:           "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
 };
 var irheadNone   = "<TMPL_VAR VZLOGGER.IRHEAD_NONE>";
 var irheadRemove_title = "<TMPL_VAR VZLOGGER.IRHEAD_REMOVE>";
+var irheadAdding = "<TMPL_VAR VZLOGGER.IRHEAD_ADDING>";
+var irheadAdded  = "<TMPL_VAR VZLOGGER.IRHEAD_ADDED>";
 
 function irheadEsc(value) {
 	return $("<div>").text(value == null ? "" : value).html();
 }
 
-function irheadStatus(message, ok) {
-	$("#irhead-status").text(message).css("display", "block").toggleClass("lb-callout-warning", !ok);
+// Coloured status under the add button, same look as the Smartmeter tab:
+// kind "ok" -> green, "error" -> red, "info" -> blue.
+function irheadStatus(message, kind) {
+	smStatus("#irhead-status", message, kind);
 }
 
 function irheadClearStatus() {
-	$("#irhead-status").css("display", "none").removeClass("lb-callout-warning");
+	$("#irhead-status").text("").css("display", "none");
 }
 
 // One table for all reading heads: auto-detected ones (with full USB metadata,
@@ -128,10 +133,11 @@ function irheadApply(data) {
 function irheadLoad() {
 	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "irheads-list" } })
 		.done(function(data) { if (data && data.ok) { irheadApply(data); } })
-		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, false); });
+		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, "error"); });
 }
 
 function irheadAdd() {
+	irheadStatus(irheadAdding, "info");
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: {
 			action: "irheads-add",
 			device: $("#irhead-device").val(),
@@ -142,22 +148,22 @@ function irheadAdd() {
 				irheadApply(data);
 				$("#irhead-device").val("");
 				$("#irhead-name").val("");
-				irheadClearStatus();
+				irheadStatus(irheadAdded, "ok");
 			} else {
-				irheadStatus((data && irheadMsg[data.error_key]) || irheadMsg.UI_AJAX_FAILED, false);
+				irheadStatus((data && irheadMsg[data.error_key]) || irheadMsg.UI_AJAX_FAILED, "error");
 				if (data && data.auto) { irheadApply(data); }
 			}
 		})
-		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, false); });
+		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, "error"); });
 }
 
 function irheadRemove(device) {
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "irheads-remove", device: device } })
 		.done(function(data) {
 			if (data && data.ok) { irheadApply(data); irheadClearStatus(); }
-			else { irheadStatus((data && irheadMsg[data.error_key]) || irheadMsg.UI_AJAX_FAILED, false); }
+			else { irheadStatus((data && irheadMsg[data.error_key]) || irheadMsg.UI_AJAX_FAILED, "error"); }
 		})
-		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, false); });
+		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, "error"); });
 }
 
 // ============================================================ vzLOGGER SERVICE
