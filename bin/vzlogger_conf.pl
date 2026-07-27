@@ -61,8 +61,23 @@ if ($action eq "set-settings") {
 	print encode_config($data);
 	exit 0;
 }
+if ($action eq "add-meter" || $action eq "update-meter" || $action eq "remove-meter") {
+	my $form = decode_input(read_input(shift(@ARGV)), "meter");
+	my $data = load_config() || skeleton();
+	my ($ok, $err);
+	if    ($action eq "add-meter")    { ($ok, $err) = meter_add($data, $form); }
+	elsif ($action eq "update-meter") { ($ok, $err) = meter_update($data, $form); }
+	else                              { ($ok, $err) = meter_remove($data, trimmed($form->{name})); }
+	# Validation problems are reported as an error key (exit 0) so the web UI can
+	# localize them; only real write failures are fatal.
+	if (!$ok) { print encode_config({ error_key => $err }); exit 0; }
+	enforce_auto($data);
+	save_config($data) or die "Could not write $config_file\n";
+	print encode_config($data);
+	exit 0;
+}
 
-die "Usage: $0 get|save [FILE]|set-settings [FILE]\n";
+die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
@@ -131,6 +146,124 @@ sub skeleton
 	enforce_auto($data);
 	return $data;
 }
+
+# ---- Meters -------------------------------------------------------------
+
+# A meter is identified by its (unique) plugin name, stored as an extra "name"
+# key. vzLogger passes unknown meter keys through untouched, so this stays inside
+# vzlogger.conf. One meter maps to exactly one device.
+sub meter_index
+{
+	my ($data, $name) = @_;
+	return -1 if (ref($data->{meters}) ne "ARRAY" || !defined($name) || $name eq "");
+	for my $i (0 .. $#{$data->{meters}}) {
+		my $m = $data->{meters}[$i];
+		return $i if (ref($m) eq "HASH" && defined($m->{name}) && $m->{name} eq $name);
+	}
+	return -1;
+}
+
+sub meter_validate
+{
+	my ($data, $form, $skip_idx) = @_;
+	my $name   = trimmed($form->{name});
+	my $device = trimmed($form->{device});
+	return (0, "UI_METER_INVALID_NAME")     if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/);
+	return (0, "UI_METER_INVALID_DEVICE")   if ($device !~ m{\A/dev/[A-Za-z0-9_./-]{1,120}\z});
+	return (0, "UI_METER_INVALID_PROTOCOL") if (trimmed($form->{protocol}) !~ /\A(?:sml|d0|oms)\z/);
+	for my $i (0 .. $#{$data->{meters}}) {
+		next if (defined($skip_idx) && $i == $skip_idx);
+		my $m = $data->{meters}[$i];
+		next if (ref($m) ne "HASH");
+		return (0, "UI_METER_DUPLICATE_NAME")   if (defined($m->{name}) && $m->{name} eq $name);
+		return (0, "UI_METER_DUPLICATE_DEVICE") if (defined($m->{device}) && $m->{device} eq $device);
+	}
+	return (1, "");
+}
+
+sub meter_add
+{
+	my ($data, $form) = @_;
+	my ($ok, $err) = meter_validate($data, $form, undef);
+	return (0, $err) if (!$ok);
+	$data->{meters} = [] if (ref($data->{meters}) ne "ARRAY");
+	push @{$data->{meters}}, normalize_meter($form, []);
+	return (1, "");
+}
+
+sub meter_update
+{
+	my ($data, $form) = @_;
+	my $idx = meter_index($data, trimmed($form->{original_name}));
+	return (0, "UI_METER_NOT_FOUND") if ($idx < 0);
+	my ($ok, $err) = meter_validate($data, $form, $idx);
+	return (0, $err) if (!$ok);
+	# Keep the channels that were configured for this meter.
+	my $channels = (ref($data->{meters}[$idx]{channels}) eq "ARRAY") ? $data->{meters}[$idx]{channels} : [];
+	$data->{meters}[$idx] = normalize_meter($form, $channels);
+	return (1, "");
+}
+
+sub meter_remove
+{
+	my ($data, $name) = @_;
+	my $idx = meter_index($data, $name);
+	return (0, "UI_METER_NOT_FOUND") if ($idx < 0);
+	splice(@{$data->{meters}}, $idx, 1);
+	return (1, "");
+}
+
+# Builds a vzLogger meter entry from the UI form. Fields with a real default are
+# always written; free-text fields (host, pullseq, key) are omitted when empty,
+# as vzLogger expects (its OptionList treats absent options as the default).
+sub normalize_meter
+{
+	my ($form, $channels) = @_;
+	my $proto = trimmed($form->{protocol});
+	$proto = "sml" if ($proto !~ /\A(?:sml|d0|oms)\z/);
+	my $m = {
+		name             => trimmed($form->{name}),
+		enabled          => as_bool($form->{enabled}),
+		protocol         => $proto,
+		device           => trimmed($form->{device}),
+		interval         => as_int($form->{interval}, -1),
+		aggtime          => -1,
+		allowskip        => JSON::PP::true,
+		aggfixedinterval => JSON::PP::false,
+		channels         => (ref($channels) eq "ARRAY") ? $channels : [],
+	};
+	if ($proto eq "sml") {
+		set_if($m, "host", trimmed($form->{host}));
+		$m->{baudrate}       = as_int($form->{baudrate}, 9600);
+		$m->{parity}         = valid_parity($form->{parity}, "8n1");
+		set_if($m, "pullseq", trimmed($form->{pullseq}));
+		$m->{use_local_time} = as_bool($form->{use_local_time});
+	} elsif ($proto eq "d0") {
+		set_if($m, "host", trimmed($form->{host}));
+		$m->{baudrate}       = as_int($form->{baudrate}, 300);
+		$m->{baudrate_read}  = as_int($form->{baudrate_read}, 300);
+		$m->{parity}         = valid_parity($form->{parity}, "7e1");
+		$m->{read_timeout}   = as_int($form->{read_timeout}, 10);
+		set_if($m, "pullseq", trimmed($form->{pullseq}));
+		my $ack = trimmed($form->{ackseq});
+		$m->{ackseq}         = ($ack ne "") ? $ack : "auto";
+		my $ws = trimmed($form->{wait_sync});
+		$m->{wait_sync}      = ($ws =~ /\A(?:end|off)\z/) ? $ws : "off";
+		$m->{baudrate_change_delay} = as_int($form->{baudrate_change_delay}, 0);
+	} elsif ($proto eq "oms") {
+		$m->{baudrate}       = as_int($form->{baudrate}, 9600);
+		set_if($m, "key", trimmed($form->{key}));
+		$m->{use_local_time} = as_bool($form->{use_local_time});
+		$m->{mbus_debug}     = JSON::PP::false;
+	}
+	return $m;
+}
+
+sub set_if { my ($h, $k, $v) = @_; $h->{$k} = "$v" if (defined($v) && $v ne ""); }
+sub as_bool { my ($v) = @_; return (defined($v) && $v ne "" && $v ne "0" && $v ne "false") ? JSON::PP::true : JSON::PP::false; }
+sub as_int { my ($v, $d) = @_; return (defined($v) && !ref($v) && $v =~ /\A\s*(-?\d+)\s*\z/) ? int($1) : $d; }
+sub valid_parity { my ($v, $d) = @_; $v = trimmed($v); return ($v =~ /\A(?:8n1|7n1|7e1|7o1)\z/) ? $v : $d; }
+sub trimmed { my ($v) = @_; return "" if (!defined($v) || ref($v)); $v =~ s/\A\s+|\s+\z//g; return $v; }
 
 # Re-derives every automatic value, keeping only retry, local.port, mqtt.topic
 # and the meters as user data.

@@ -66,22 +66,24 @@ sub vz_conf_get
 	return { ok => JSON::PP::true, config => $config };
 }
 
-# Applies a settings patch (retry, local.port, mqtt.topic) by handing it to the
-# helper via a temporary file. Returns the stored config for the UI.
-sub vz_set_settings
+# Hands a JSON payload to a mutating helper subcommand via a temporary file and
+# interprets the result: the stored config on success, or a localizable
+# error_key the helper reported (e.g. a duplicate meter name).
+sub vz_conf_write
 {
-	my ($json) = @_;
-	my $patch = eval { JSON::PP->new->decode(defined($json) ? $json : "") };
-	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($@ || ref($patch) ne "HASH");
-	my ($fh, $tmp) = eval { tempfile("vzsettings-XXXXXX", DIR => $lbpconfigdir, SUFFIX => ".json", UNLINK => 0) };
+	my ($subaction, $json) = @_;
+	my $payload = eval { JSON::PP->new->decode(defined($json) ? $json : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($@ || ref($payload) ne "HASH");
+	my ($fh, $tmp) = eval { tempfile("vzconf-XXXXXX", DIR => $lbpconfigdir, SUFFIX => ".json", UNLINK => 0) };
 	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if (!$tmp);
-	print $fh JSON::PP->new->utf8->encode($patch);
+	print $fh JSON::PP->new->utf8->encode($payload);
 	close($fh);
-	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_conf.pl set-settings '$tmp' 2>/dev/null");
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_conf.pl $subaction '$tmp' 2>/dev/null");
 	unlink($tmp);
-	my $config = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
-	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($rc != 0 || $@ || ref($config) ne "HASH");
-	return { ok => JSON::PP::true, config => $config };
+	my $res = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($rc != 0 || $@ || ref($res) ne "HASH");
+	return { ok => JSON::PP::false, error_key => $res->{error_key} } if ($res->{error_key});
+	return { ok => JSON::PP::true, config => $res };
 }
 
 if ($action eq "irheads-list") {
@@ -118,7 +120,16 @@ elsif ($action eq "vzconf-get") {
 	$response = vz_conf_get();
 }
 elsif ($action eq "vzconf-set-settings") {
-	$response = is_post() ? vz_set_settings($q->{settings}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+	$response = is_post() ? vz_conf_write("set-settings", $q->{settings}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-add-meter") {
+	$response = is_post() ? vz_conf_write("add-meter", $q->{meter}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-update-meter") {
+	$response = is_post() ? vz_conf_write("update-meter", $q->{meter}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-remove-meter") {
+	$response = is_post() ? vz_conf_write("remove-meter", $q->{meter}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
 else {
 	$response = { ok => JSON::PP::false, error_key => "UI_UNKNOWN_ACTION" };

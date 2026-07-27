@@ -52,6 +52,17 @@ $(function() {
 		$("#set-topic, #set-localport, #set-retry").on("blur", setSaveSettings);
 		setLoad();
 	}
+
+	// Smartmeter tab: meter list plus add/edit form.
+	if (document.getElementById("meter-form")) {
+		$("#meter-protocol").on("change", function() { meterApplyProto($(this).val(), true); });
+		$("#meter-device").on("change", meterPrefillName);
+		$(document).on("click", ".meter-edit", function() { meterEdit($(this).data("name")); });
+		$(document).on("click", ".meter-del", function() { meterDelete($(this).data("name")); });
+		meterLoadDevices();
+		meterLoadList();
+		meterApplyProto($("#meter-protocol").val(), false);
+	}
 });
 
 // ============================================================ I/R READING HEADS
@@ -268,6 +279,192 @@ function setSaveSettings() {
 			else { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); }
 		})
 		.fail(function() { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); });
+}
+
+// =========================================================== SMARTMETER TAB
+
+var meterList = [];
+var meterMsg = {
+	UI_METER_INVALID_NAME:     "<TMPL_VAR VZLOGGER.UI_METER_INVALID_NAME>",
+	UI_METER_INVALID_DEVICE:   "<TMPL_VAR VZLOGGER.UI_METER_INVALID_DEVICE>",
+	UI_METER_INVALID_PROTOCOL: "<TMPL_VAR VZLOGGER.UI_METER_INVALID_PROTOCOL>",
+	UI_METER_DUPLICATE_NAME:   "<TMPL_VAR VZLOGGER.UI_METER_DUPLICATE_NAME>",
+	UI_METER_DUPLICATE_DEVICE: "<TMPL_VAR VZLOGGER.UI_METER_DUPLICATE_DEVICE>",
+	UI_METER_NOT_FOUND:        "<TMPL_VAR VZLOGGER.UI_METER_NOT_FOUND>",
+	UI_AJAX_FAILED:            "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
+};
+var meterText = {
+	ADD:        "<TMPL_VAR VZLOGGER.MET_ADD_HEADING>",
+	EDIT:       "<TMPL_VAR VZLOGGER.MET_EDIT_HEADING>",
+	NONE:       "<TMPL_VAR VZLOGGER.MET_NONE>",
+	ACTIVE:     "<TMPL_VAR VZLOGGER.MET_ACTIVE>",
+	INACTIVE:   "<TMPL_VAR VZLOGGER.MET_INACTIVE>",
+	EDITBTN:    "<TMPL_VAR VZLOGGER.MET_EDIT>",
+	DELBTN:     "<TMPL_VAR VZLOGGER.MET_DELETE>",
+	DELCONFIRM: "<TMPL_VAR VZLOGGER.MET_DELETE_CONFIRM>",
+	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
+};
+var meterDefaults = {
+	sml: { baudrate: "9600", parity: "8n1" },
+	d0:  { baudrate: "300",  parity: "7e1" },
+	oms: { baudrate: "9600", parity: "8n1" }
+};
+
+function meterLoadDevices() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "irheads-list" } })
+		.done(function(data) {
+			if (!data || !data.ok) { return; }
+			var sel = $("#meter-device").empty();
+			var heads = (data.auto || []).concat(data.manual || []);
+			heads.forEach(function(h) {
+				sel.append($("<option>").val(h.device).text(h.name + " (" + h.device + ")"));
+			});
+		});
+}
+
+function meterPrefillName() {
+	if ($("#meter-name").val() !== "") { return; }
+	var m = $("#meter-device option:selected").text().match(/^(.*?)\s+\(/);
+	if (m) { $("#meter-name").val(m[1]); }
+}
+
+function meterApplyProto(proto, resetDefaults) {
+	$(".meter-row").each(function() {
+		var list = " " + ($(this).data("proto") || "") + " ";
+		$(this).toggle(list.indexOf(" " + proto + " ") >= 0);
+	});
+	if (resetDefaults && meterDefaults[proto]) {
+		$("#meter-baudrate").val(meterDefaults[proto].baudrate);
+		$("#meter-baudrate-read").val(meterDefaults[proto].baudrate);
+		$("#meter-parity").val(meterDefaults[proto].parity);
+	}
+}
+
+function meterLoadList() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vzconf-get" } })
+		.done(function(data) {
+			meterList = (data && data.ok && data.config && data.config.meters) ? data.config.meters : [];
+			meterRenderList();
+		});
+}
+
+function meterRenderList() {
+	var body = $("#meters-body").empty();
+	if (!meterList.length) {
+		body.append('<tr><td colspan="5">' + smEsc(meterText.NONE) + '</td></tr>');
+		return;
+	}
+	meterList.forEach(function(m) {
+		var status = m.enabled ? meterText.ACTIVE : meterText.INACTIVE;
+		var edit = '<button type="button" class="lb-btn lb-btn-sm meter-edit" data-name="' + smEsc(m.name) + '">' + smEsc(meterText.EDITBTN) + '</button>';
+		var del  = '<button type="button" class="lb-btn lb-btn-sm lb-btn-danger meter-del" data-name="' + smEsc(m.name) + '">' + smEsc(meterText.DELBTN) + '</button>';
+		body.append(
+			"<tr><td>" + smEsc(m.name) + "</td><td>" + smEsc((m.protocol || "").toUpperCase()) +
+			"</td><td style=\"font-family:var(--lb-font-mono)\">" + smEsc(m.device) + "</td><td>" + smEsc(status) +
+			"</td><td>" + edit + " " + del + "</td></tr>"
+		);
+	});
+}
+
+function meterGather() {
+	return {
+		original_name:         $("#meter-original-name").val(),
+		name:                  $("#meter-name").val(),
+		enabled:               $("#meter-enabled").is(":checked") ? "1" : "0",
+		protocol:              $("#meter-protocol").val(),
+		device:                $("#meter-device").val(),
+		interval:              $("#meter-interval").val(),
+		host:                  $("#meter-host").val(),
+		baudrate:              $("#meter-baudrate").val(),
+		baudrate_read:         $("#meter-baudrate-read").val(),
+		parity:                $("#meter-parity").val(),
+		read_timeout:          $("#meter-read-timeout").val(),
+		pullseq:               $("#meter-pullseq").val(),
+		ackseq:                $("#meter-ackseq").val(),
+		wait_sync:             $("#meter-wait-sync").val(),
+		baudrate_change_delay: $("#meter-bcd").val(),
+		key:                   $("#meter-key").val(),
+		use_local_time:        $("#meter-uselocaltime").val()
+	};
+}
+
+function meterStatus(message, ok) {
+	$("#meter-status").text(message).css("display", "block").toggleClass("lb-callout-warning", !ok);
+}
+
+function meterStatusClear() {
+	$("#meter-status").css("display", "none").removeClass("lb-callout-warning");
+}
+
+function meterApply(data, ok) {
+	if (data && data.ok) {
+		meterList = (data.config && data.config.meters) ? data.config.meters : [];
+		meterRenderList();
+		return true;
+	}
+	meterStatus((data && meterMsg[data.error_key]) || meterMsg.UI_AJAX_FAILED, false);
+	return false;
+}
+
+function meterSave() {
+	var form = meterGather();
+	var action = form.original_name ? "vzconf-update-meter" : "vzconf-add-meter";
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action, meter: JSON.stringify(form) } })
+		.done(function(data) {
+			if (meterApply(data)) { meterFormReset(); meterStatus(meterText.SAVED, true); }
+		})
+		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, false); });
+}
+
+function meterDelete(name) {
+	if (!window.confirm(meterText.DELCONFIRM)) { return; }
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-remove-meter", meter: JSON.stringify({ name: name }) } })
+		.done(function(data) { if (meterApply(data)) { meterStatus(meterText.SAVED, true); } })
+		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, false); });
+}
+
+function meterEdit(name) {
+	var m = null;
+	meterList.forEach(function(x) { if (x.name === name) { m = x; } });
+	if (!m) { return; }
+	$("#meter-original-name").val(m.name);
+	$("#meter-name").val(m.name);
+	$("#meter-enabled").prop("checked", m.enabled ? true : false);
+	$("#meter-protocol").val(m.protocol);
+	meterApplyProto(m.protocol, false);
+	$("#meter-device").val(m.device);
+	$("#meter-interval").val(m.interval != null ? m.interval : -1);
+	$("#meter-host").val(m.host || "");
+	$("#meter-baudrate").val(m.baudrate != null ? m.baudrate : "");
+	$("#meter-baudrate-read").val(m.baudrate_read != null ? m.baudrate_read : "");
+	$("#meter-parity").val(m.parity || "");
+	$("#meter-read-timeout").val(m.read_timeout != null ? m.read_timeout : "");
+	$("#meter-pullseq").val(m.pullseq || "");
+	$("#meter-ackseq").val(m.ackseq || "auto");
+	$("#meter-wait-sync").val(m.wait_sync || "off");
+	$("#meter-bcd").val(m.baudrate_change_delay != null ? m.baudrate_change_delay : 0);
+	$("#meter-key").val(m.key || "");
+	$("#meter-uselocaltime").val(m.use_local_time ? "1" : "0");
+	$("#meter-form-title").text(meterText.EDIT);
+	meterStatusClear();
+}
+
+function meterFormReset() {
+	$("#meter-original-name").val("");
+	$("#meter-name").val("");
+	$("#meter-enabled").prop("checked", true);
+	$("#meter-protocol").val("sml");
+	meterApplyProto("sml", true);
+	$("#meter-device").prop("selectedIndex", 0);
+	$("#meter-interval").val("-1");
+	$("#meter-host, #meter-pullseq, #meter-key").val("");
+	$("#meter-read-timeout").val("10");
+	$("#meter-ackseq").val("auto");
+	$("#meter-wait-sync").val("off");
+	$("#meter-bcd").val("0");
+	$("#meter-uselocaltime").val("0");
+	$("#meter-form-title").text(meterText.ADD);
+	meterStatusClear();
 }
 
 </script>

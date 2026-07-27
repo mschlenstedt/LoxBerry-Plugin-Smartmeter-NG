@@ -2,7 +2,151 @@
 
 <div id="vz-service"></div>
 
-<h2><TMPL_VAR COMMON.TAB_SMARTMETER></h2>
-<p><TMPL_VAR COMMON.TAB_PLACEHOLDER></p>
+<details class="lb-collapsible" open>
+	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.MET_LIST_HEADING></summary>
+	<div class="lb-collapsible-content">
+		<div class="lb-table-responsive">
+		<table class="lb-table">
+			<thead>
+				<tr>
+					<th><TMPL_VAR VZLOGGER.MET_COL_NAME></th>
+					<th><TMPL_VAR VZLOGGER.MET_COL_PROTOCOL></th>
+					<th><TMPL_VAR VZLOGGER.MET_COL_DEVICE></th>
+					<th><TMPL_VAR VZLOGGER.MET_COL_STATUS></th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="meters-body"></tbody>
+		</table>
+		</div>
+	</div>
+</details>
+
+<details class="lb-collapsible" open>
+	<summary style="font-size:1.15em; font-weight:700;" id="meter-form-title"><TMPL_VAR VZLOGGER.MET_ADD_HEADING></summary>
+	<div class="lb-collapsible-content">
+		<form id="meter-form" onsubmit="return false;">
+			<input type="hidden" id="meter-original-name" value="">
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="meter-name"><TMPL_VAR VZLOGGER.MET_NAME> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-name"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_NAME_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="meter-enabled"><TMPL_VAR VZLOGGER.MET_ENABLED></label>
+				<div class="lb-form-field"><input type="checkbox" id="meter-enabled" checked></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_ENABLED_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="meter-protocol"><TMPL_VAR VZLOGGER.MET_PROTOCOL> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-protocol">
+					<option value="sml">SML</option>
+					<option value="d0">D0</option>
+					<option value="oms">OMS</option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PROTOCOL_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="meter-device"><TMPL_VAR VZLOGGER.MET_DEVICE> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-device"></select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_DEVICE_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="meter-interval"><TMPL_VAR VZLOGGER.MET_INTERVAL> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="number" id="meter-interval" value="-1"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_INTERVAL_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="sml d0">
+				<label class="lb-form-label" for="meter-host"><TMPL_VAR VZLOGGER.MET_HOST> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-host"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_HOST_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="sml d0 oms">
+				<label class="lb-form-label" for="meter-baudrate"><TMPL_VAR VZLOGGER.MET_BAUDRATE> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-baudrate">
+					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_BAUDRATE_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="d0">
+				<label class="lb-form-label" for="meter-baudrate-read"><TMPL_VAR VZLOGGER.MET_BAUDRATE_READ> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-baudrate-read">
+					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_BAUDRATE_READ_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="sml d0">
+				<label class="lb-form-label" for="meter-parity"><TMPL_VAR VZLOGGER.MET_PARITY> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-parity">
+					<option>8n1</option><option>7n1</option><option>7e1</option><option>7o1</option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PARITY_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="d0">
+				<label class="lb-form-label" for="meter-read-timeout"><TMPL_VAR VZLOGGER.MET_READ_TIMEOUT> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="number" id="meter-read-timeout" value="10"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_READ_TIMEOUT_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="sml d0">
+				<label class="lb-form-label" for="meter-pullseq"><TMPL_VAR VZLOGGER.MET_PULLSEQ> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-pullseq"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PULLSEQ_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="d0">
+				<label class="lb-form-label" for="meter-ackseq"><TMPL_VAR VZLOGGER.MET_ACKSEQ> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-ackseq" value="auto"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_ACKSEQ_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="d0">
+				<label class="lb-form-label" for="meter-wait-sync"><TMPL_VAR VZLOGGER.MET_WAIT_SYNC> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-wait-sync">
+					<option>off</option><option>end</option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_WAIT_SYNC_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="d0">
+				<label class="lb-form-label" for="meter-bcd"><TMPL_VAR VZLOGGER.MET_BAUD_CHANGE_DELAY> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="number" id="meter-bcd" value="0"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_BAUD_CHANGE_DELAY_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="oms">
+				<label class="lb-form-label" for="meter-key"><TMPL_VAR VZLOGGER.MET_KEY> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-key"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_KEY_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="sml oms">
+				<label class="lb-form-label" for="meter-uselocaltime"><TMPL_VAR VZLOGGER.MET_USELOCALTIME> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="meter-uselocaltime">
+					<option value="0"><TMPL_VAR COMMON.NO></option>
+					<option value="1"><TMPL_VAR COMMON.YES></option>
+				</select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_USELOCALTIME_HELP></div>
+			</div>
+
+			<div class="lb-actions">
+				<button type="button" class="lb-btn lb-btn-primary" onclick="meterSave(); return false;"><TMPL_VAR VZLOGGER.MET_SAVE></button>
+				<button type="button" class="lb-btn" onclick="meterFormReset(); return false;"><TMPL_VAR VZLOGGER.MET_CANCEL></button>
+			</div>
+
+			<div id="meter-status" class="lb-callout" style="display:none; margin-top:1em;"></div>
+		</form>
+	</div>
+</details>
 
 </div>

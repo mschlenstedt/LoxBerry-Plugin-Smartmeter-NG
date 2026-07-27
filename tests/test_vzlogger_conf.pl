@@ -105,4 +105,50 @@ my $t = get_skeleton();
 is($t->{mqtt}{port}, 8883, "TLS broker port is used");
 is($t->{mqtt}{cafile}, "/etc/mosquitto/tls/ca.crt", "cafile points at the local CA");
 
+# --- Meters --------------------------------------------------------------
+unlink("$dir/vzlogger.conf");
+
+# Add an SML meter; empty free-text fields are omitted.
+write_file("$dir/m1.json", JSON::PP->new->encode({
+	name => "Haus", enabled => "1", protocol => "sml", device => "/dev/ttyUSB0",
+	interval => "-1", baudrate => "9600", parity => "8n1", pullseq => "", host => "", use_local_time => "0",
+}));
+($out, $rc) = run_conf("add-meter", "$dir/m1.json");
+is($rc, 0, "add-meter exits cleanly");
+my $c = JSON::PP->new->decode($out);
+ok(!$c->{error_key}, "add-meter reports no error");
+is(scalar(@{$c->{meters}}), 1, "one meter stored");
+is($c->{meters}[0]{name}, "Haus", "meter name kept as extra key");
+is($c->{meters}[0]{protocol}, "sml", "protocol stored");
+is($c->{meters}[0]{device}, "/dev/ttyUSB0", "device stored");
+is($c->{meters}[0]{baudrate}, 9600, "baudrate stored");
+is($c->{meters}[0]{aggtime}, -1, "aggtime forced to -1");
+ok(!exists $c->{meters}[0]{host}, "empty host is omitted");
+ok(!exists $c->{meters}[0]{pullseq}, "empty pullseq is omitted");
+is(ref($c->{meters}[0]{channels}), "ARRAY", "channels is an array");
+
+# Duplicate name / device / invalid name are rejected.
+write_file("$dir/m2.json", JSON::PP->new->encode({ name => "Haus", protocol => "sml", device => "/dev/ttyUSB9" }));
+is(JSON::PP->new->decode((run_conf("add-meter", "$dir/m2.json"))[0])->{error_key}, "UI_METER_DUPLICATE_NAME", "duplicate name rejected");
+write_file("$dir/m3.json", JSON::PP->new->encode({ name => "Zwei", protocol => "sml", device => "/dev/ttyUSB0" }));
+is(JSON::PP->new->decode((run_conf("add-meter", "$dir/m3.json"))[0])->{error_key}, "UI_METER_DUPLICATE_DEVICE", "duplicate device rejected");
+write_file("$dir/m4.json", JSON::PP->new->encode({ name => "bad name", protocol => "sml", device => "/dev/ttyUSB1" }));
+is(JSON::PP->new->decode((run_conf("add-meter", "$dir/m4.json"))[0])->{error_key}, "UI_METER_INVALID_NAME", "invalid name rejected");
+
+# Update it to OMS with an AES key.
+write_file("$dir/u1.json", JSON::PP->new->encode({
+	original_name => "Haus", name => "Keller", enabled => "1", protocol => "oms",
+	device => "/dev/ttyUSB0", key => "0102030405060708090a0b0c0d0e0f10", use_local_time => "1",
+}));
+$c = JSON::PP->new->decode((run_conf("update-meter", "$dir/u1.json"))[0]);
+is(scalar(@{$c->{meters}}), 1, "still one meter after update");
+is($c->{meters}[0]{name}, "Keller", "meter renamed");
+is($c->{meters}[0]{protocol}, "oms", "protocol changed to oms");
+is($c->{meters}[0]{key}, "0102030405060708090a0b0c0d0e0f10", "AES key stored");
+
+# Remove it.
+write_file("$dir/r1.json", JSON::PP->new->encode({ name => "Keller" }));
+$c = JSON::PP->new->decode((run_conf("remove-meter", "$dir/r1.json"))[0]);
+is(scalar(@{$c->{meters}}), 0, "meter removed");
+
 done_testing();
