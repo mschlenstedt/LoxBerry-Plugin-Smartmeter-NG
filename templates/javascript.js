@@ -54,6 +54,11 @@ $(function() {
 
 	// Smartmeter tab: meter list plus add/edit form.
 	if (document.getElementById("meter-form")) {
+		// Restrict the meter name to the characters the server accepts, so the user
+		// cannot even type anything else (same as the I/R reading head name field).
+		$("#meter-name").on("input", function() {
+			this.value = this.value.replace(/[^A-Za-z0-9_-]/g, "");
+		});
 		$("#meter-protocol").on("change", function() { meterApplyProto($(this).val(), true); });
 		$("#meter-device").on("change", meterPrefillName);
 		$(document).on("click", ".meter-edit", function() { meterEdit($(this).data("name")); });
@@ -317,8 +322,8 @@ var meterText = {
 	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
 };
 var meterDefaults = {
-	sml: { baudrate: "9600", parity: "8n1" },
-	d0:  { baudrate: "300",  parity: "7e1" },
+	sml: { baudrate: "300", parity: "8n1" },
+	d0:  { baudrate: "300", parity: "7e1" },
 	oms: { baudrate: "9600", parity: "8n1" }
 };
 

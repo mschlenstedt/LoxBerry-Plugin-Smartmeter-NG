@@ -43,11 +43,11 @@
 			<div class="lb-form-row">
 				<label class="lb-form-label" for="meter-protocol"><TMPL_VAR VZLOGGER.MET_PROTOCOL> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 				<div class="lb-form-field"><select class="lb-select" id="meter-protocol">
-					<option value="sml">SML</option>
+					<option value="sml" selected>SML</option>
 					<option value="d0">D0</option>
 					<option value="oms">OMS</option>
-					<option value="random">Random (Test)</option>
 					<option value="exec">Exec</option>
+					<option value="random">Random (Test)</option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PROTOCOL_HELP></div>
 			</div>
@@ -73,7 +73,7 @@
 			<div class="lb-form-row meter-row" data-proto="sml d0 oms">
 				<label class="lb-form-label" for="meter-baudrate"><TMPL_VAR VZLOGGER.MET_BAUDRATE> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 				<div class="lb-form-field"><select class="lb-select" id="meter-baudrate">
-					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
+					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option selected>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_BAUDRATE_HELP></div>
 			</div>
@@ -81,7 +81,7 @@
 			<div class="lb-form-row meter-row" data-proto="d0">
 				<label class="lb-form-label" for="meter-baudrate-read"><TMPL_VAR VZLOGGER.MET_BAUDRATE_READ> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 				<div class="lb-form-field"><select class="lb-select" id="meter-baudrate-read">
-					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
+					<option>50</option><option>75</option><option>110</option><option>134</option><option>150</option><option>200</option><option selected>300</option><option>600</option><option>1200</option><option>1800</option><option>2400</option><option>4800</option><option>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option><option>230400</option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_BAUDRATE_READ_HELP></div>
 			</div>
@@ -167,7 +167,6 @@
 
 			<div class="lb-actions" style="margin-top:1em;">
 				<button type="button" class="lb-btn lb-btn-primary" onclick="meterSave(); return false;"><TMPL_VAR VZLOGGER.MET_SAVE></button>
-				<button type="button" class="lb-btn" onclick="meterFormReset(); return false;"><TMPL_VAR VZLOGGER.MET_CANCEL></button>
 			</div>
 
 			<div id="meter-status" style="display:none; text-align:center; margin-top:0.5em;"></div>
