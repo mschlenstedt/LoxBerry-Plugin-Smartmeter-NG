@@ -27,7 +27,7 @@
 
 $(function() {
 	// I/R reading heads tab: run only when its markup is present.
-	if ($("#irheads-auto-body").length) {
+	if ($("#irheads-body").length) {
 		irheadLoad();
 		// Keep the manual name field to letters, digits, underscore and hyphen.
 		$("#irhead-name").on("input", function() {
@@ -97,38 +97,32 @@ function irheadClearStatus() {
 	$("#irhead-status").css("display", "none").removeClass("lb-callout-warning");
 }
 
-function irheadRenderAuto(rows) {
-	var body = $("#irheads-auto-body").empty();
-	if (!rows || !rows.length) {
-		body.append('<tr><td colspan="6">' + irheadEsc(irheadNone) + '</td></tr>');
+// One table for all reading heads: auto-detected ones (with full USB metadata,
+// not removable) and manually added ones (name + device, removable via the ×
+// button). Rows are merged and sorted by device path so there is no visual split.
+function irheadApply(data) {
+	var body = $("#irheads-body").empty();
+	var rows = [];
+	(data.auto   || []).forEach(function(r) { rows.push($.extend({ removable: false }, r)); });
+	(data.manual || []).forEach(function(r) { rows.push($.extend({ removable: true  }, r)); });
+	if (!rows.length) {
+		body.append('<tr><td colspan="7">' + irheadEsc(irheadNone) + '</td></tr>');
 		return;
 	}
+	rows.sort(function(a, b) { return String(a.device || "").localeCompare(String(b.device || "")); });
+	var mono = " style=\"font-family:var(--lb-font-mono)\"";
 	rows.forEach(function(r) {
 		var hw = [r.vendor, r.model].filter(Boolean).join(" ");
+		var action = r.removable
+			? '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" style="padding:1px 8px; font-size:15px; line-height:1.4;" data-device="' +
+				irheadEsc(r.device) + '" title="' + irheadEsc(irheadRemove_title) + '">&times;</button>'
+			: "";
 		body.append(
-			"<tr><td>" + irheadEsc(r.name) + "</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.device) +
-			"</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
-			"</td><td>" + irheadEsc(r.usbport) + "</td><td>" + irheadEsc(hw) + "</td></tr>"
+			"<tr><td>" + irheadEsc(r.name) + "</td><td" + mono + ">" + irheadEsc(r.device) +
+			"</td><td" + mono + ">" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
+			"</td><td>" + irheadEsc(r.usbport) + "</td><td>" + irheadEsc(hw) + "</td><td>" + action + "</td></tr>"
 		);
 	});
-}
-
-function irheadRenderManual(rows) {
-	var body = $("#irheads-manual-body").empty();
-	if (!rows || !rows.length) {
-		body.append('<tr><td colspan="3">' + irheadEsc(irheadNone) + '</td></tr>');
-		return;
-	}
-	rows.forEach(function(r) {
-		var button = '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" style="padding:1px 8px; font-size:15px; line-height:1.4;" data-device="' +
-			irheadEsc(r.device) + '" title="' + irheadEsc(irheadRemove_title) + '">&times;</button>';
-		body.append("<tr><td>" + irheadEsc(r.name) + "</td><td style=\"font-family:var(--lb-font-mono)\">" + irheadEsc(r.device) + "</td><td>" + button + "</td></tr>");
-	});
-}
-
-function irheadApply(data) {
-	irheadRenderAuto(data.auto);
-	irheadRenderManual(data.manual);
 }
 
 function irheadLoad() {

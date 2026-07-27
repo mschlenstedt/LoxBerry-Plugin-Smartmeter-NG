@@ -3,9 +3,9 @@
 <div id="vz-service"></div>
 
 <details class="lb-collapsible" open>
-	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.IRHEAD_AUTO_HEADING></summary>
+	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.IRHEAD_HEADING></summary>
 	<div class="lb-collapsible-content">
-		<p style="color:var(--lb-text-muted); font-size:0.85rem; line-height:1.5; margin:0 0 12px;"><TMPL_VAR VZLOGGER.IRHEAD_AUTO_HINT></p>
+		<p style="color:var(--lb-text-muted); font-size:0.85rem; line-height:1.5; margin:0 0 12px;"><TMPL_VAR VZLOGGER.IRHEAD_HINT></p>
 		<div class="lb-table-responsive">
 		<table class="lb-table">
 			<thead>
@@ -16,27 +16,10 @@
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_SERIAL></th>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_USBPORT></th>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_HARDWARE></th>
-				</tr>
-			</thead>
-			<tbody id="irheads-auto-body"></tbody>
-		</table>
-		</div>
-	</div>
-</details>
-
-<details class="lb-collapsible" open>
-	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.IRHEAD_MANUAL_HEADING></summary>
-	<div class="lb-collapsible-content">
-		<div class="lb-table-responsive">
-		<table class="lb-table">
-			<thead>
-				<tr>
-					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_NAME></th>
-					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_DEVICE></th>
 					<th></th>
 				</tr>
 			</thead>
-			<tbody id="irheads-manual-body"></tbody>
+			<tbody id="irheads-body"></tbody>
 		</table>
 		</div>
 	</div>
