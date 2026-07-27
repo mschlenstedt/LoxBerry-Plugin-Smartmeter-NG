@@ -230,7 +230,7 @@ sub normalize_meter
 {
 	my ($form, $channels) = @_;
 	my $proto = trimmed($form->{protocol});
-	$proto = "sml" if ($proto !~ /\A(?:sml|d0|oms)\z/);
+	$proto = "sml" if ($proto !~ /\A(?:sml|d0|oms|random)\z/);
 	my $m = {
 		name             => trimmed($form->{name}),
 		enabled          => as_bool($form->{enabled}),
