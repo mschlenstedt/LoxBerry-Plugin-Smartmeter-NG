@@ -47,6 +47,7 @@
 					<option value="d0">D0</option>
 					<option value="oms">OMS</option>
 					<option value="random">Random (Test)</option>
+					<option value="exec">Exec</option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PROTOCOL_HELP></div>
 			</div>
@@ -150,6 +151,18 @@
 				<label class="lb-form-label" for="meter-max"><TMPL_VAR VZLOGGER.MET_MAX> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 				<div class="lb-form-field"><input class="lb-input" type="number" step="any" id="meter-max" value="100"></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_MAX_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="exec">
+				<label class="lb-form-label" for="meter-command"><TMPL_VAR VZLOGGER.MET_COMMAND> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-command"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_COMMAND_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="exec">
+				<label class="lb-form-label" for="meter-format"><TMPL_VAR VZLOGGER.MET_FORMAT> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="meter-format" placeholder="$v"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_FORMAT_HELP></div>
 			</div>
 
 			<div class="lb-actions" style="margin-top:1em;">

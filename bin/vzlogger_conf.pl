@@ -178,9 +178,10 @@ sub meter_validate
 	my $device = trimmed($form->{device});
 	my $proto  = trimmed($form->{protocol});
 	return (0, "UI_METER_INVALID_NAME")     if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/);
-	return (0, "UI_METER_INVALID_PROTOCOL") if ($proto !~ /\A(?:sml|d0|oms|random)\z/);
-	# The random test protocol has no device; every real protocol needs one.
-	return (0, "UI_METER_INVALID_DEVICE")   if ($proto ne "random" && $device !~ m{\A/dev/[A-Za-z0-9_./-]{1,120}\z});
+	return (0, "UI_METER_INVALID_PROTOCOL") if ($proto !~ /\A(?:sml|d0|oms|random|exec)\z/);
+	# random and exec have no device; every serial protocol needs one.
+	return (0, "UI_METER_INVALID_DEVICE")   if ($proto ne "random" && $proto ne "exec" && $device !~ m{\A/dev/[A-Za-z0-9_./-]{1,120}\z});
+	return (0, "UI_METER_COMMAND_REQUIRED") if ($proto eq "exec" && trimmed($form->{command}) eq "");
 	for my $i (0 .. $#{$data->{meters}}) {
 		next if (defined($skip_idx) && $i == $skip_idx);
 		my $m = $data->{meters}[$i];
@@ -230,7 +231,7 @@ sub normalize_meter
 {
 	my ($form, $channels) = @_;
 	my $proto = trimmed($form->{protocol});
-	$proto = "sml" if ($proto !~ /\A(?:sml|d0|oms|random)\z/);
+	$proto = "sml" if ($proto !~ /\A(?:sml|d0|oms|random|exec)\z/);
 	my $m = {
 		name             => trimmed($form->{name}),
 		enabled          => as_bool($form->{enabled}),
@@ -270,6 +271,11 @@ sub normalize_meter
 		delete $m->{device};
 		$m->{min} = as_double($form->{min}, 0);
 		$m->{max} = as_double($form->{max}, 100);
+	} elsif ($proto eq "exec") {
+		# Reads from the output of a shell command; no device.
+		delete $m->{device};
+		set_if($m, "command", trimmed($form->{command}));
+		set_if($m, "format", trimmed($form->{format}));
 	}
 	return $m;
 }

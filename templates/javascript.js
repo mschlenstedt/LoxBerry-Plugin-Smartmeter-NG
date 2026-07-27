@@ -295,6 +295,7 @@ var meterMsg = {
 	UI_METER_DUPLICATE_NAME:   "<TMPL_VAR VZLOGGER.UI_METER_DUPLICATE_NAME>",
 	UI_METER_DUPLICATE_DEVICE: "<TMPL_VAR VZLOGGER.UI_METER_DUPLICATE_DEVICE>",
 	UI_METER_NOT_FOUND:        "<TMPL_VAR VZLOGGER.UI_METER_NOT_FOUND>",
+	UI_METER_COMMAND_REQUIRED: "<TMPL_VAR VZLOGGER.UI_METER_COMMAND_REQUIRED>",
 	UI_AJAX_FAILED:            "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
 };
 var meterText = {
@@ -394,7 +395,9 @@ function meterGather() {
 		key:                   $("#meter-key").val(),
 		use_local_time:        $("#meter-uselocaltime").val(),
 		min:                   $("#meter-min").val(),
-		max:                   $("#meter-max").val()
+		max:                   $("#meter-max").val(),
+		command:               $("#meter-command").val(),
+		format:                $("#meter-format").val()
 	};
 }
 
@@ -457,6 +460,8 @@ function meterEdit(name) {
 	$("#meter-uselocaltime").val(m.use_local_time ? "1" : "0");
 	$("#meter-min").val(m.min != null ? m.min : "0");
 	$("#meter-max").val(m.max != null ? m.max : "100");
+	$("#meter-command").val(m.command || "");
+	$("#meter-format").val(m.format || "");
 	$("#meter-form-title").text(meterText.EDIT);
 	meterStatusClear();
 }
@@ -477,6 +482,7 @@ function meterFormReset() {
 	$("#meter-uselocaltime").val("0");
 	$("#meter-min").val("0");
 	$("#meter-max").val("100");
+	$("#meter-command, #meter-format").val("");
 	$("#meter-form-title").text(meterText.ADD);
 	meterStatusClear();
 }

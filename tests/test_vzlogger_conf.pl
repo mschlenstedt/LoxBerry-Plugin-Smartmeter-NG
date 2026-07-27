@@ -165,4 +165,20 @@ ok(!$c->{error_key}, "random meter is accepted without a device");
 is($c->{meters}[0]{protocol}, "random", "random protocol stored");
 ok(!exists $c->{meters}[0]{device}, "random meter has no device");
 
+# Exec test meter: command required, no device, empty format omitted.
+unlink("$dir/vzlogger.conf");
+write_file("$dir/ex1.json", JSON::PP->new->encode({
+	name => "Exec1", enabled => "1", protocol => "exec", interval => "5", command => "/usr/bin/mycmd", format => "",
+}));
+$c = JSON::PP->new->decode((run_conf("add-meter", "$dir/ex1.json"))[0]);
+ok(!$c->{error_key}, "exec meter is accepted");
+is($c->{meters}[0]{protocol}, "exec", "exec protocol stored");
+is($c->{meters}[0]{command}, "/usr/bin/mycmd", "command stored");
+ok(!exists $c->{meters}[0]{device}, "exec meter has no device");
+ok(!exists $c->{meters}[0]{format}, "empty format is omitted");
+
+# Exec without a command is rejected.
+write_file("$dir/ex2.json", JSON::PP->new->encode({ name => "Exec2", protocol => "exec" }));
+is(JSON::PP->new->decode((run_conf("add-meter", "$dir/ex2.json"))[0])->{error_key}, "UI_METER_COMMAND_REQUIRED", "exec without command rejected");
+
 done_testing();
