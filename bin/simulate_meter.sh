@@ -44,10 +44,10 @@ fi
 command -v socat >/dev/null 2>&1 || { echo "socat is required: sudo apt-get install socat"; exit 1; }
 [ -n "$DUMP" ] && [ -r "$DUMP" ] || { echo "SML dump not found. Pass the dump file as an argument."; exit 1; }
 
-FEED="$(mktemp -u /tmp/smartmeter-sim.XXXXXX)"
-SOCAT_PID=""
-cleanup() { [ -n "$SOCAT_PID" ] && kill "$SOCAT_PID" 2>/dev/null || true; rm -f "$FEED"; }
+cleanup() { pkill -P $$ 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
+
+mkdir -p "$(dirname "$DEVICE")"
 
 echo "Simulated meter device : $DEVICE"
 echo "SML dump               : $DUMP ($(wc -c < "$DUMP") bytes)"
@@ -57,20 +57,13 @@ echo "The plugin auto-detects it in the I/R heads tab. Create an SML meter on it
 echo "(baudrate 9600, parity 8n1); auto-discovery reads the stream on save."
 echo
 
-# Persistent virtual serial pair: bytes written to $FEED appear on $DEVICE, which
-# is placed in the udev-rule directory and made readable for the loxberry user
-# (vzLogger runs as loxberry).
-mkdir -p "$(dirname "$DEVICE")"
-socat PTY,link="$FEED",raw,echo=0 PTY,link="$DEVICE",raw,echo=0,mode=0660,group=loxberry &
-SOCAT_PID=$!
-sleep 1
-
-# Hold the feed side open through a dedicated file descriptor. Otherwise every
-# "cat > $FEED" closes the PTY slave, socat sees EOF and exits, and the meter
-# stops receiving telegrams after the first one.
-exec 3>"$FEED"
-
+# Serve the SML dump on a virtual serial device. socat waits for a reader
+# (wait-slave) and exits when that reader disconnects - e.g. when vzLogger is
+# restarted or stopped for OBIS discovery. The outer loop then re-creates the
+# device for the next reader; the inner "while cat" ends cleanly on SIGPIPE
+# (socat gone) instead of busy-looping.
 while true; do
-	cat "$DUMP" >&3
-	sleep "$INTERVAL"
+	while cat "$DUMP"; do sleep "$INTERVAL"; done \
+		| socat -u - "PTY,link=$DEVICE,raw,echo=0,mode=0660,group=loxberry,wait-slave"
+	sleep 1
 done

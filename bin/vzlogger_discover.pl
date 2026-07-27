@@ -82,6 +82,9 @@ chmod(0640, $cfg_file);
 
 # Free the device (stop the running vzLogger without the manual-stop marker).
 run_quiet("$watchdog --action=stop-discovery");
+# Let the device settle: give it a moment to be released, and a file-based
+# simulator time to re-attach its virtual serial device for the next reader.
+sleep(2);
 
 # Run vzLogger for the timeout, then stop it.
 my $bin = $ENV{SMARTMETER_VZLOGGER_BIN} || vzlogger_binary();
