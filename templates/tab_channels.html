@@ -1,0 +1,56 @@
+<div class="lb-content">
+
+<div id="vz-service"></div>
+
+<details class="lb-collapsible" open>
+	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.CH_LIST_HEADING></summary>
+	<div class="lb-collapsible-content">
+		<div class="lb-table-responsive">
+		<table class="lb-table">
+			<thead>
+				<tr>
+					<th><TMPL_VAR VZLOGGER.CH_COL_METER></th>
+					<th><TMPL_VAR VZLOGGER.CH_COL_NAME></th>
+					<th><TMPL_VAR VZLOGGER.CH_COL_IDENTIFIER></th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="channels-body"></tbody>
+		</table>
+		</div>
+	</div>
+</details>
+
+<details class="lb-collapsible" open>
+	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.CH_ADD_HEADING></summary>
+	<div class="lb-collapsible-content">
+		<form id="channel-form" onsubmit="return false;">
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="ch-meter"><TMPL_VAR VZLOGGER.CH_METER> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><select class="lb-select" id="ch-meter"></select></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.CH_METER_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="ch-identifier"><TMPL_VAR VZLOGGER.CH_IDENTIFIER> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="ch-identifier" placeholder="1-0:1.8.0"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.CH_IDENTIFIER_HELP></div>
+			</div>
+
+			<div class="lb-form-row">
+				<label class="lb-form-label" for="ch-name"><TMPL_VAR VZLOGGER.CH_NAME> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="text" id="ch-name"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.CH_NAME_HELP></div>
+			</div>
+
+			<div class="lb-actions" style="margin-top:1em;">
+				<button type="button" class="lb-btn lb-btn-primary" onclick="channelAdd(); return false;"><TMPL_VAR VZLOGGER.CH_ADD_BUTTON></button>
+			</div>
+
+			<div id="channel-status" style="display:none; text-align:center; margin-top:0.5em;"></div>
+		</form>
+	</div>
+</details>
+
+</div>

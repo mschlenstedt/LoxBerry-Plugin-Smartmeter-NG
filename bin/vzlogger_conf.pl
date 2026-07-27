@@ -76,8 +76,18 @@ if ($action eq "add-meter" || $action eq "update-meter" || $action eq "remove-me
 	print encode_config($data);
 	exit 0;
 }
+if ($action eq "add-channel" || $action eq "remove-channel") {
+	my $form = decode_input(read_input(shift(@ARGV)), "channel");
+	my $data = load_config() || skeleton();
+	my ($ok, $err) = ($action eq "add-channel") ? channel_add($data, $form) : channel_remove($data, $form);
+	if (!$ok) { print encode_config({ error_key => $err }); exit 0; }
+	enforce_auto($data);
+	save_config($data) or die "Could not write $config_file\n";
+	print encode_config($data);
+	exit 0;
+}
 
-die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]\n";
+die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
@@ -241,7 +251,7 @@ sub normalize_meter
 		aggtime          => -1,
 		allowskip        => JSON::PP::true,
 		aggfixedinterval => JSON::PP::false,
-		channels         => (ref($channels) eq "ARRAY") ? $channels : [],
+		channels         => [],
 	};
 	if ($proto eq "sml") {
 		set_if($m, "host", trimmed($form->{host}));
@@ -277,7 +287,82 @@ sub normalize_meter
 		set_if($m, "command", trimmed($form->{command}));
 		set_if($m, "format", trimmed($form->{format}));
 	}
+	# Rebuild the channels so mqtt_topic follows the (possibly new) meter name.
+	$m->{channels} = normalize_channels($m->{name}, $channels);
 	return $m;
+}
+
+# ---- Channels -----------------------------------------------------------
+
+# A channel: api=null (MQTT + local httpd, no middleware), a stable uuid, the
+# OBIS identifier, aggmode always "none" (per spec), plus mqtt_topic and name.
+sub channel_entry
+{
+	my ($meter_name, $identifier, $name, $uuid) = @_;
+	$uuid = new_uuid() if (!defined($uuid) || $uuid !~ /\A[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\z/);
+	return {
+		api        => "null",
+		uuid       => $uuid,
+		identifier => "$identifier",
+		name       => "$name",
+		mqtt_topic => "$meter_name/$name",
+		aggmode    => "none",
+	};
+}
+
+# Rebuilds a meter's channels: refreshes mqtt_topic for the (possibly renamed)
+# meter and enforces api/aggmode while keeping existing uuids stable.
+sub normalize_channels
+{
+	my ($meter_name, $channels) = @_;
+	my @out;
+	foreach my $ch (@{ref($channels) eq "ARRAY" ? $channels : []}) {
+		next if (ref($ch) ne "HASH");
+		my $name  = (defined($ch->{name}) && !ref($ch->{name})) ? "$ch->{name}" : "";
+		my $ident = (defined($ch->{identifier}) && !ref($ch->{identifier})) ? "$ch->{identifier}" : "";
+		push @out, channel_entry($meter_name, $ident, $name, $ch->{uuid});
+	}
+	return \@out;
+}
+
+sub channel_add
+{
+	my ($data, $form) = @_;
+	my $meter_name = trimmed($form->{meter});
+	my $idx = meter_index($data, $meter_name);
+	return (0, "UI_CHANNEL_METER_NOT_FOUND") if ($idx < 0);
+	my $name  = trimmed($form->{name});
+	my $ident = trimmed($form->{identifier});
+	return (0, "UI_CHANNEL_INVALID_NAME")       if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/);
+	return (0, "UI_CHANNEL_INVALID_IDENTIFIER") if ($ident eq "");
+	my $meter = $data->{meters}[$idx];
+	$meter->{channels} = [] if (ref($meter->{channels}) ne "ARRAY");
+	foreach my $ch (@{$meter->{channels}}) {
+		return (0, "UI_CHANNEL_DUPLICATE_NAME") if (ref($ch) eq "HASH" && defined($ch->{name}) && $ch->{name} eq $name);
+	}
+	push @{$meter->{channels}}, channel_entry($meter_name, $ident, $name, undef);
+	return (1, "");
+}
+
+sub channel_remove
+{
+	my ($data, $form) = @_;
+	my $idx = meter_index($data, trimmed($form->{meter}));
+	return (0, "UI_CHANNEL_METER_NOT_FOUND") if ($idx < 0);
+	my $uuid = trimmed($form->{uuid});
+	my $meter = $data->{meters}[$idx];
+	my $channels = (ref($meter->{channels}) eq "ARRAY") ? $meter->{channels} : [];
+	my $before = scalar(@$channels);
+	@{$meter->{channels}} = grep { !(ref($_) eq "HASH" && defined($_->{uuid}) && $_->{uuid} eq $uuid) } @$channels;
+	return (0, "UI_CHANNEL_NOT_FOUND") if (scalar(@{$meter->{channels}}) == $before);
+	return (1, "");
+}
+
+sub new_uuid
+{
+	my $hex = "";
+	$hex .= sprintf("%02x", int(rand(256))) for (1 .. 16);
+	return join("-", substr($hex, 0, 8), substr($hex, 8, 4), substr($hex, 12, 4), substr($hex, 16, 4), substr($hex, 20, 12));
 }
 
 sub set_if { my ($h, $k, $v) = @_; $h->{$k} = "$v" if (defined($v) && $v ne ""); }

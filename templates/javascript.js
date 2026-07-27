@@ -62,6 +62,13 @@ $(function() {
 		meterLoadList();
 		meterApplyProto($("#meter-protocol").val(), false);
 	}
+
+	// Channels tab: list of all channels plus a manual add form.
+	if (document.getElementById("channel-form")) {
+		$("#ch-name").on("input", function() { this.value = this.value.replace(/[^A-Za-z0-9_-]/g, ""); });
+		$(document).on("click", ".channel-del", function() { channelDelete($(this).data("meter"), $(this).data("uuid")); });
+		channelLoad();
+	}
 });
 
 // ============================================================ I/R READING HEADS
@@ -485,6 +492,89 @@ function meterFormReset() {
 	$("#meter-command, #meter-format").val("");
 	$("#meter-form-title").text(meterText.ADD);
 	meterStatusClear();
+}
+
+// =========================================================== CHANNELS TAB
+
+var channelMsg = {
+	UI_CHANNEL_METER_NOT_FOUND:    "<TMPL_VAR VZLOGGER.UI_CHANNEL_METER_NOT_FOUND>",
+	UI_CHANNEL_INVALID_NAME:       "<TMPL_VAR VZLOGGER.UI_CHANNEL_INVALID_NAME>",
+	UI_CHANNEL_INVALID_IDENTIFIER: "<TMPL_VAR VZLOGGER.UI_CHANNEL_INVALID_IDENTIFIER>",
+	UI_CHANNEL_DUPLICATE_NAME:     "<TMPL_VAR VZLOGGER.UI_CHANNEL_DUPLICATE_NAME>",
+	UI_CHANNEL_NOT_FOUND:          "<TMPL_VAR VZLOGGER.UI_CHANNEL_NOT_FOUND>",
+	UI_AJAX_FAILED:                "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
+};
+var channelText = {
+	NONE:       "<TMPL_VAR VZLOGGER.CH_NONE>",
+	DELBTN:     "<TMPL_VAR VZLOGGER.CH_DELETE>",
+	DELCONFIRM: "<TMPL_VAR VZLOGGER.CH_DELETE_CONFIRM>",
+	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
+};
+
+function channelStatus(message, kind) { smStatus("#channel-status", message, kind); }
+
+function channelLoad() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vzconf-get" } })
+		.done(function(data) {
+			var meters = (data && data.ok && data.config && data.config.meters) ? data.config.meters : [];
+			channelFillMeters(meters);
+			channelRenderList(meters);
+		});
+}
+
+function channelFillMeters(meters) {
+	var sel = $("#ch-meter");
+	var current = sel.val();
+	sel.empty();
+	meters.forEach(function(m) { sel.append($("<option>").val(m.name).text(m.name)); });
+	if (current) { sel.val(current); }
+}
+
+function channelRenderList(meters) {
+	var body = $("#channels-body").empty();
+	var rows = 0;
+	meters.forEach(function(m) {
+		(m.channels || []).forEach(function(ch) {
+			rows++;
+			var del = '<button type="button" class="lb-btn lb-btn-sm lb-btn-danger channel-del" data-meter="' + smEsc(m.name) + '" data-uuid="' + smEsc(ch.uuid) + '">' + smEsc(channelText.DELBTN) + '</button>';
+			body.append(
+				"<tr><td>" + smEsc(m.name) + "</td><td>" + smEsc(ch.name) +
+				"</td><td style=\"font-family:var(--lb-font-mono)\">" + smEsc(ch.identifier) + "</td><td>" + del + "</td></tr>"
+			);
+		});
+	});
+	if (!rows) { body.append('<tr><td colspan="4">' + smEsc(channelText.NONE) + '</td></tr>'); }
+}
+
+function channelAdd() {
+	var form = { meter: $("#ch-meter").val(), identifier: $("#ch-identifier").val(), name: $("#ch-name").val() };
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channel", channel: JSON.stringify(form) } })
+		.done(function(data) {
+			if (data && data.ok) {
+				var meters = (data.config && data.config.meters) ? data.config.meters : [];
+				channelFillMeters(meters);
+				channelRenderList(meters);
+				$("#ch-identifier, #ch-name").val("");
+				channelStatus(channelText.SAVED, "ok");
+			} else {
+				channelStatus((data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
+			}
+		})
+		.fail(function() { channelStatus(channelMsg.UI_AJAX_FAILED, "error"); });
+}
+
+function channelDelete(meter, uuid) {
+	if (!window.confirm(channelText.DELCONFIRM)) { return; }
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-remove-channel", channel: JSON.stringify({ meter: meter, uuid: uuid }) } })
+		.done(function(data) {
+			if (data && data.ok) {
+				channelRenderList((data.config && data.config.meters) ? data.config.meters : []);
+				channelStatus(channelText.SAVED, "ok");
+			} else {
+				channelStatus((data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
+			}
+		})
+		.fail(function() { channelStatus(channelMsg.UI_AJAX_FAILED, "error"); });
 }
 
 </script>

@@ -181,4 +181,38 @@ ok(!exists $c->{meters}[0]{format}, "empty format is omitted");
 write_file("$dir/ex2.json", JSON::PP->new->encode({ name => "Exec2", protocol => "exec" }));
 is(JSON::PP->new->decode((run_conf("add-meter", "$dir/ex2.json"))[0])->{error_key}, "UI_METER_COMMAND_REQUIRED", "exec without command rejected");
 
+# --- Channels ------------------------------------------------------------
+unlink("$dir/vzlogger.conf");
+write_file("$dir/cm.json", JSON::PP->new->encode({ name => "Haus", protocol => "sml", device => "/dev/ttyUSB0" }));
+run_conf("add-meter", "$dir/cm.json");
+
+write_file("$dir/ca.json", JSON::PP->new->encode({ meter => "Haus", identifier => "1-0:1.8.0", name => "Bezug" }));
+$c = JSON::PP->new->decode((run_conf("add-channel", "$dir/ca.json"))[0]);
+ok(!$c->{error_key}, "channel added");
+my $chs = $c->{meters}[0]{channels};
+is(scalar(@$chs), 1, "one channel stored");
+is($chs->[0]{api}, "null", "channel api is null");
+is($chs->[0]{identifier}, "1-0:1.8.0", "identifier stored");
+is($chs->[0]{name}, "Bezug", "channel name stored");
+is($chs->[0]{aggmode}, "none", "aggmode is always none");
+is($chs->[0]{mqtt_topic}, "Haus/Bezug", "mqtt_topic is meter/channel");
+like($chs->[0]{uuid}, qr/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/, "uuid has a valid format");
+my $ch_uuid = $chs->[0]{uuid};
+
+write_file("$dir/ca2.json", JSON::PP->new->encode({ meter => "Haus", identifier => "1-0:2.8.0", name => "Bezug" }));
+is(JSON::PP->new->decode((run_conf("add-channel", "$dir/ca2.json"))[0])->{error_key}, "UI_CHANNEL_DUPLICATE_NAME", "duplicate channel name rejected");
+
+write_file("$dir/ca3.json", JSON::PP->new->encode({ meter => "Nope", identifier => "1-0:1.8.0", name => "X" }));
+is(JSON::PP->new->decode((run_conf("add-channel", "$dir/ca3.json"))[0])->{error_key}, "UI_CHANNEL_METER_NOT_FOUND", "channel for unknown meter rejected");
+
+# Renaming the meter updates the channel mqtt_topic and keeps the uuid.
+write_file("$dir/ren.json", JSON::PP->new->encode({ original_name => "Haus", name => "Keller", protocol => "sml", device => "/dev/ttyUSB0" }));
+$c = JSON::PP->new->decode((run_conf("update-meter", "$dir/ren.json"))[0]);
+is($c->{meters}[0]{channels}[0]{mqtt_topic}, "Keller/Bezug", "mqtt_topic follows the meter rename");
+is($c->{meters}[0]{channels}[0]{uuid}, $ch_uuid, "channel uuid stays stable across rename");
+
+write_file("$dir/cr.json", JSON::PP->new->encode({ meter => "Keller", uuid => $ch_uuid }));
+$c = JSON::PP->new->decode((run_conf("remove-channel", "$dir/cr.json"))[0]);
+is(scalar(@{$c->{meters}[0]{channels}}), 0, "channel removed");
+
 done_testing();

@@ -131,6 +131,12 @@ elsif ($action eq "vzconf-update-meter") {
 elsif ($action eq "vzconf-remove-meter") {
 	$response = is_post() ? vz_conf_write("remove-meter", $q->{meter}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
+elsif ($action eq "vzconf-add-channel") {
+	$response = is_post() ? vz_conf_write("add-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-remove-channel") {
+	$response = is_post() ? vz_conf_write("remove-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
 else {
 	$response = { ok => JSON::PP::false, error_key => "UI_UNKNOWN_ACTION" };
 }
