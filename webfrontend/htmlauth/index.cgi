@@ -48,10 +48,6 @@ elsif ($q->{form} eq "upgrade") {
 	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_upgrade.html");
 	&form_upgrade();
 }
-elsif ($q->{form} eq "livedata") {
-	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_livedata.html");
-	&form_livedata();
-}
 elsif ($q->{form} eq "logfiles") {
 	$template = LoxBerry::System::read_file("$lbptemplatedir/tab_logfiles.html");
 	&form_logfiles();
@@ -73,7 +69,6 @@ sub form_smartmeter { &preparetemplate(); return(); }
 sub form_channels   { &preparetemplate(); return(); }
 sub form_settings   { &preparetemplate(); return(); }
 sub form_upgrade    { &preparetemplate(); return(); }
-sub form_livedata   { &preparetemplate(); return(); }
 
 sub form_logfiles
 {
@@ -123,10 +118,6 @@ sub preparetemplate
 	$navbar{50}{Name}   = $L{'COMMON.TAB_UPGRADE'};
 	$navbar{50}{URL}    = 'index.cgi?form=upgrade';
 	$navbar{50}{active} = 1 if ($q->{form} eq "upgrade");
-
-	$navbar{60}{Name}   = $L{'COMMON.TAB_LIVEDATA'};
-	$navbar{60}{URL}    = 'index.cgi?form=livedata';
-	$navbar{60}{active} = 1 if ($q->{form} eq "livedata");
 
 	$navbar{70}{Name}   = $L{'COMMON.TAB_LOGFILES'};
 	$navbar{70}{URL}    = 'index.cgi?form=logfiles';

@@ -68,11 +68,15 @@ $(function() {
 		meterApplyProto($("#meter-protocol").val(), false);
 	}
 
-	// Channels tab: list of all channels plus a manual add form.
+	// Channels tab: list of all channels plus an add/edit form.
 	if (document.getElementById("channel-form")) {
 		$("#ch-name").on("input", function() { this.value = this.value.replace(/[^A-Za-z0-9_-]/g, ""); });
+		$(document).on("click", ".channel-edit", function() { channelEdit($(this).data("meter"), $(this).data("uuid")); });
 		$(document).on("click", ".channel-del", function() { channelDelete($(this).data("meter"), $(this).data("uuid")); });
 		channelLoad();
+		// Poll the current per-channel values from vzLogger's httpd every 5 s.
+		channelLivePoll();
+		window.setInterval(channelLivePoll, 5000);
 	}
 });
 
@@ -199,6 +203,18 @@ function smEsc(value) {
 function smStatus(sel, text, kind) {
 	var color = kind === "ok" ? "#4a9e2f" : (kind === "error" ? "#c0392b" : "#2274c6");
 	$(sel).text(text).css({ display: "block", "text-align": "center", "margin-top": "0.5em", color: color });
+}
+
+// Small square icon button, same size as the I/R reading head buttons.
+// kind "gear" -> edit (⚙), "x" -> delete (×, red). data = extra data-* attributes.
+function smIconBtn(cls, kind, title, data) {
+	var glyph  = kind === "gear" ? "⚙" : "×";
+	var danger = kind === "x" ? " lb-btn-danger" : "";
+	var attrs  = "";
+	for (var k in data) { if (data.hasOwnProperty(k)) { attrs += ' data-' + k + '="' + smEsc(data[k]) + '"'; } }
+	return '<button type="button" class="lb-btn lb-btn-icon lb-btn-sm' + danger + ' ' + cls +
+		'" style="padding:1px 8px; font-size:15px; line-height:1.4;"' + attrs +
+		' title="' + smEsc(title) + '">' + glyph + '</button>';
 }
 
 function smServiceRender() {
@@ -387,8 +403,8 @@ function meterRenderList() {
 	}
 	meterList.forEach(function(m) {
 		var status = m.enabled ? meterText.ACTIVE : meterText.INACTIVE;
-		var edit = '<button type="button" class="lb-btn lb-btn-sm meter-edit" data-name="' + smEsc(m.name) + '">' + smEsc(meterText.EDITBTN) + '</button>';
-		var del  = '<button type="button" class="lb-btn lb-btn-sm lb-btn-danger meter-del" data-name="' + smEsc(m.name) + '">' + smEsc(meterText.DELBTN) + '</button>';
+		var edit = smIconBtn("meter-edit", "gear", meterText.EDITBTN, { name: m.name });
+		var del  = smIconBtn("meter-del", "x", meterText.DELBTN, { name: m.name });
 		body.append(
 			"<tr><td>" + smEsc(m.name) + "</td><td>" + smEsc((m.protocol || "").toUpperCase()) +
 			"</td><td style=\"font-family:var(--lb-font-mono)\">" + smEsc(m.device) + "</td><td>" + smEsc(status) +
@@ -561,6 +577,11 @@ var discText = {
 };
 var channelText = {
 	NONE:       "<TMPL_VAR VZLOGGER.CH_NONE>",
+	ADD:        "<TMPL_VAR VZLOGGER.CH_ADD_HEADING>",
+	EDIT:       "<TMPL_VAR VZLOGGER.CH_EDIT_HEADING>",
+	EDITBTN:    "<TMPL_VAR VZLOGGER.CH_EDIT>",
+	ADDBTN:     "<TMPL_VAR VZLOGGER.CH_ADD_BUTTON>",
+	SAVEBTN:    "<TMPL_VAR VZLOGGER.CH_SAVE>",
 	DELBTN:     "<TMPL_VAR VZLOGGER.CH_DELETE>",
 	DELCONFIRM: "<TMPL_VAR VZLOGGER.CH_DELETE_CONFIRM>",
 	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
@@ -588,31 +609,92 @@ function channelFillMeters(meters) {
 	});
 }
 
+var channelMeters = [];        // last loaded meters (with channels), for edit lookup
+var channelLastValues = {};    // last polled live values, keyed by channel uuid
+
 function channelRenderList(meters) {
+	channelMeters = meters || [];
 	var body = $("#channels-body").empty();
 	var rows = 0;
-	meters.forEach(function(m) {
+	channelMeters.forEach(function(m) {
 		(m.channels || []).forEach(function(ch) {
 			rows++;
-			var del = '<button type="button" class="lb-btn lb-btn-sm lb-btn-danger channel-del" data-meter="' + smEsc(m.name) + '" data-uuid="' + smEsc(ch.uuid) + '">' + smEsc(channelText.DELBTN) + '</button>';
+			var edit = smIconBtn("channel-edit", "gear", channelText.EDITBTN, { meter: m.name, uuid: ch.uuid });
+			var del  = smIconBtn("channel-del", "x", channelText.DELBTN, { meter: m.name, uuid: ch.uuid });
 			body.append(
 				"<tr><td>" + smEsc(m.name) + "</td><td>" + smEsc(ch.name) +
-				"</td><td style=\"font-family:var(--lb-font-mono)\">" + smEsc(ch.identifier) + "</td><td>" + del + "</td></tr>"
+				"</td><td style=\"font-family:var(--lb-font-mono)\">" + smEsc(ch.identifier) +
+				"</td><td class=\"ch-value\" data-uuid=\"" + smEsc(ch.uuid) + "\">–</td><td>" + edit + " " + del + "</td></tr>"
 			);
 		});
 	});
-	if (!rows) { body.append('<tr><td colspan="4">' + smEsc(channelText.NONE) + '</td></tr>'); }
+	if (!rows) { body.append('<tr><td colspan="5">' + smEsc(channelText.NONE) + '</td></tr>'); }
+	channelLiveApply(channelLastValues);
 }
 
-function channelAdd() {
+function channelFmt(v) {
+	if (v == null || isNaN(v)) { return "–"; }
+	return (Math.round(Number(v) * 100) / 100).toString();
+}
+
+// Every 5 s: fetch the current values from vzLogger's httpd and fill them in.
+function channelLivePoll() {
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vz-live" } })
+		.done(function(data) {
+			channelLastValues = (data && data.ok && data.values) ? data.values : {};
+			channelLiveApply(channelLastValues);
+		});
+}
+
+function channelLiveApply(values) {
+	values = values || {};
+	$("#channels-body .ch-value").each(function() {
+		var uuid = $(this).attr("data-uuid");
+		$(this).text(Object.prototype.hasOwnProperty.call(values, uuid) ? channelFmt(values[uuid]) : "–");
+	});
+}
+
+function channelEdit(meter, uuid) {
+	var found = null;
+	channelMeters.forEach(function(m) {
+		if (m.name !== meter) { return; }
+		(m.channels || []).forEach(function(ch) { if (ch.uuid === uuid) { found = ch; } });
+	});
+	if (!found) { return; }
+	channelFillMeters(channelMeters);
+	$("#ch-original-meter").val(meter);
+	$("#ch-original-uuid").val(uuid);
+	$("#ch-meter").val(meter);
+	$("#ch-identifier").val(found.identifier || "");
+	$("#ch-name").val(found.name || "");
+	$("#channel-form-title").text(channelText.EDIT);
+	$("#ch-save-btn").text(channelText.SAVEBTN);
+	$("#channel-status").css("display", "none");
+}
+
+function channelFormReset() {
+	$("#ch-original-meter, #ch-original-uuid").val("");
+	$("#ch-identifier, #ch-name").val("");
+	$("#channel-form-title").text(channelText.ADD);
+	$("#ch-save-btn").text(channelText.ADDBTN);
+}
+
+function channelSave() {
+	var uuid = $("#ch-original-uuid").val();
 	var form = { meter: $("#ch-meter").val(), identifier: $("#ch-identifier").val(), name: $("#ch-name").val() };
-	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channel", channel: JSON.stringify(form) } })
+	var action = "vzconf-add-channel";
+	if (uuid) {
+		action = "vzconf-update-channel";
+		form.uuid = uuid;
+		form.original_meter = $("#ch-original-meter").val();
+	}
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action, channel: JSON.stringify(form) } })
 		.done(function(data) {
 			if (data && data.ok) {
 				var meters = (data.config && data.config.meters) ? data.config.meters : [];
 				channelFillMeters(meters);
 				channelRenderList(meters);
-				$("#ch-identifier, #ch-name").val("");
+				channelFormReset();
 				channelStatus(channelText.SAVED, "ok");
 			} else {
 				channelStatus((data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");

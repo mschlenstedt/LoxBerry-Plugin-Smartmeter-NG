@@ -66,6 +66,41 @@ sub vz_conf_get
 	return { ok => JSON::PP::true, config => $config };
 }
 
+# Reads the current per-channel values from vzLogger's local httpd and returns
+# them as { uuid => value }. Best effort: if the local interface is off or the
+# httpd is unreachable, an empty map is returned so the UI shows no values.
+sub vz_live
+{
+	my $port = vz_local_port();
+	return { ok => JSON::PP::true, values => {} } if (!$port);
+	require HTTP::Tiny;
+	my $resp = HTTP::Tiny->new(timeout => 2)->get("http://127.0.0.1:$port/");
+	return { ok => JSON::PP::true, values => {} } if (!$resp || !$resp->{success});
+	my $doc = eval { JSON::PP->new->relaxed->decode($resp->{content}) };
+	return { ok => JSON::PP::true, values => {} } if ($@ || ref($doc) ne "HASH");
+	my %values;
+	foreach my $ch (@{ref($doc->{data}) eq "ARRAY" ? $doc->{data} : []}) {
+		next if (ref($ch) ne "HASH" || !defined($ch->{uuid}));
+		my $tuples = $ch->{tuples};
+		next if (ref($tuples) ne "ARRAY" || !@$tuples);
+		my $last = $tuples->[-1];
+		next if (ref($last) ne "ARRAY" || @$last < 2);
+		$values{$ch->{uuid}} = $last->[1] + 0;
+	}
+	return { ok => JSON::PP::true, values => \%values };
+}
+
+# The vzLogger local httpd port, or undef when the local interface is disabled.
+sub vz_local_port
+{
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_conf.pl get 2>/dev/null");
+	my $config = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
+	return undef if ($@ || ref($config) ne "HASH" || ref($config->{local}) ne "HASH");
+	return undef if (!$config->{local}{enabled});
+	my $port = $config->{local}{port};
+	return ($port && $port =~ /\A\d+\z/) ? $port : undef;
+}
+
 # Hands a JSON payload to a mutating helper subcommand via a temporary file and
 # interprets the result: the stored config on success, or a localizable
 # error_key the helper reported (e.g. a duplicate meter name).
@@ -148,8 +183,14 @@ elsif ($action eq "vzconf-remove-meter") {
 elsif ($action eq "vzconf-add-channel") {
 	$response = is_post() ? vz_conf_write("add-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
+elsif ($action eq "vzconf-update-channel") {
+	$response = is_post() ? vz_conf_write("update-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
 elsif ($action eq "vzconf-remove-channel") {
 	$response = is_post() ? vz_conf_write("remove-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vz-live") {
+	$response = vz_live();
 }
 elsif ($action eq "vzconf-add-channels") {
 	$response = is_post() ? vz_conf_write("add-channels", $q->{channels}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };

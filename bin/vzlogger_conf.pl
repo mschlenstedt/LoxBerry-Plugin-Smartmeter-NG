@@ -88,11 +88,12 @@ if ($action eq "add-meter" || $action eq "update-meter" || $action eq "remove-me
 	print encode_config($data);
 	exit 0;
 }
-if ($action eq "add-channel" || $action eq "remove-channel" || $action eq "add-channels") {
+if ($action eq "add-channel" || $action eq "update-channel" || $action eq "remove-channel" || $action eq "add-channels") {
 	my $form = decode_input(read_input(shift(@ARGV)), "channel");
 	my $data = load_config() || skeleton();
 	my ($ok, $err);
 	if    ($action eq "add-channel")    { ($ok, $err) = channel_add($data, $form); }
+	elsif ($action eq "update-channel") { ($ok, $err) = channel_update($data, $form); }
 	elsif ($action eq "remove-channel") { ($ok, $err) = channel_remove($data, $form); }
 	else                                { ($ok, $err) = channels_add_many($data, $form); }
 	if (!$ok) { print encode_config({ error_key => $err }); exit 0; }
@@ -102,7 +103,7 @@ if ($action eq "add-channel" || $action eq "remove-channel" || $action eq "add-c
 	exit 0;
 }
 
-die "Usage: $0 get|refresh|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]|add-channels [FILE]\n";
+die "Usage: $0 get|refresh|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|update-channel [FILE]|remove-channel [FILE]|add-channels [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
@@ -377,6 +378,40 @@ sub channels_add_many
 		my $ident = trimmed($ch->{identifier});
 		next if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/ || $ident eq "" || $have{$name}++);
 		push @{$meter->{channels}}, channel_entry($meter_name, $ident, $name, undef);
+	}
+	return (1, "");
+}
+
+# Updates a channel identified by its uuid (in original_meter): changes name and
+# identifier, and can move it to another meter. The uuid stays stable.
+sub channel_update
+{
+	my ($data, $form) = @_;
+	my $uuid      = trimmed($form->{uuid});
+	my $old_meter = trimmed($form->{original_meter});
+	my $new_meter = trimmed($form->{meter});
+	my $name      = trimmed($form->{name});
+	my $ident     = trimmed($form->{identifier});
+	return (0, "UI_CHANNEL_INVALID_NAME")       if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/);
+	return (0, "UI_CHANNEL_INVALID_IDENTIFIER") if ($ident eq "");
+	my $oidx = meter_index($data, $old_meter);
+	my $nidx = meter_index($data, $new_meter);
+	return (0, "UI_CHANNEL_METER_NOT_FOUND") if ($oidx < 0 || $nidx < 0);
+	my $ometer = $data->{meters}[$oidx];
+	my $ochans = (ref($ometer->{channels}) eq "ARRAY") ? $ometer->{channels} : [];
+	my ($found) = grep { ref($_) eq "HASH" && defined($_->{uuid}) && $_->{uuid} eq $uuid } @$ochans;
+	return (0, "UI_CHANNEL_NOT_FOUND") if (!$found);
+	my $nmeter = $data->{meters}[$nidx];
+	$nmeter->{channels} = [] if (ref($nmeter->{channels}) ne "ARRAY");
+	foreach my $ch (@{$nmeter->{channels}}) {
+		next if (ref($ch) ne "HASH" || (defined($ch->{uuid}) && $ch->{uuid} eq $uuid));
+		return (0, "UI_CHANNEL_DUPLICATE_NAME") if (defined($ch->{name}) && $ch->{name} eq $name);
+	}
+	if ($oidx == $nidx) {
+		%$found = %{ channel_entry($new_meter, $ident, $name, $uuid) };
+	} else {
+		@{$ometer->{channels}} = grep { !(ref($_) eq "HASH" && defined($_->{uuid}) && $_->{uuid} eq $uuid) } @$ochans;
+		push @{$nmeter->{channels}}, channel_entry($new_meter, $ident, $name, $uuid);
 	}
 	return (1, "");
 }
