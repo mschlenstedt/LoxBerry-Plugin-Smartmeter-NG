@@ -7,10 +7,16 @@
 # head. NOT wired into the web UI - run it by hand while testing.
 #
 # Usage:
-#   sudo ./simulate_meter.sh [DUMPFILE]
+#   sudo ./simulate_meter.sh [DUMP]
+#
+#   DUMP may be:
+#     - omitted            -> the default sample (data/sample.dmp)
+#     - a bare filename    -> looked up in data/testdata/ (also tries <name>.bin),
+#                             e.g. ISKRA_MT631-D2A51-V22-K0z_without_PIN.bin
+#     - an absolute or relative path to any SML dump file
 #
 # Env overrides:
-#   SMARTMETER_SIM_DEVICE   device path to expose (default /dev/ttySmartmeterSim)
+#   SMARTMETER_SIM_DEVICE   device path to expose (default /dev/serial/smartmeter/SIM)
 #   SMARTMETER_SIM_INTERVAL seconds between telegrams (default 2)
 #
 # The device is created under /dev/serial/smartmeter/ (the same location as the
@@ -30,19 +36,38 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-# Locate the SML dump: explicit argument, installed data dir, or repo checkout.
-DUMP="${1:-}"
-if [ -z "$DUMP" ]; then
-	for candidate in \
-		"${SCRIPT_DIR/\/bin\/plugins\//\/data\/plugins\/}/sample.dmp" \
-		"$SCRIPT_DIR/../data/sample.dmp"
-	do
-		[ -r "$candidate" ] && DUMP="$candidate" && break
-	done
+# Resolve the plugin data dir (installed under $lbhomedir/data/plugins, or the
+# repo checkout's data/) and the bundled test-data directory.
+DATA_DIR=""
+for d in \
+	"${SCRIPT_DIR/\/bin\/plugins\//\/data\/plugins\/}" \
+	"$SCRIPT_DIR/../data"
+do
+	[ -d "$d" ] && DATA_DIR="$d" && break
+done
+TESTDATA_DIR="$DATA_DIR/testdata"
+
+# Locate the SML dump to feed (see the Usage note above).
+ARG="${1:-}"
+if [ -z "$ARG" ]; then
+	DUMP="$DATA_DIR/sample.dmp"
+elif [ "$ARG" = "$(basename "$ARG")" ] && [ -r "$TESTDATA_DIR/$ARG" ]; then
+	DUMP="$TESTDATA_DIR/$ARG"
+elif [ "$ARG" = "$(basename "$ARG")" ] && [ -r "$TESTDATA_DIR/$ARG.bin" ]; then
+	DUMP="$TESTDATA_DIR/$ARG.bin"
+else
+	DUMP="$ARG"
 fi
 
 command -v socat >/dev/null 2>&1 || { echo "socat is required: sudo apt-get install socat"; exit 1; }
-[ -n "$DUMP" ] && [ -r "$DUMP" ] || { echo "SML dump not found. Pass the dump file as an argument."; exit 1; }
+if [ -z "$DUMP" ] || [ ! -r "$DUMP" ]; then
+	echo "SML dump not found: '${ARG:-<default sample>}'"
+	if [ -d "$TESTDATA_DIR" ]; then
+		echo "Available test dumps in $TESTDATA_DIR:"
+		ls -1 "$TESTDATA_DIR" | grep -iv '\.md$' | sed 's/^/  /'
+	fi
+	exit 1
+fi
 
 cleanup() { pkill -P $$ 2>/dev/null || true; }
 trap cleanup EXIT INT TERM

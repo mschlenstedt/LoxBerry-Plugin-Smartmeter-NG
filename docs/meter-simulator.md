@@ -20,7 +20,14 @@ sudo /opt/loxberry/bin/plugins/smartmeter-ng/simulate_meter.sh
   **automatisch erkannt**. Les-/gruppenbar für `loxberry` (vzLogger läuft als
   `loxberry`). Anpassbar über `SMARTMETER_SIM_DEVICE`, Intervall über
   `SMARTMETER_SIM_INTERVAL`.
-- Dump-Datei optional als Argument; sonst wird `data/sample.dmp` verwendet.
+- Dump-Datei optional als Argument:
+  - **ohne Argument** → Standard-Sample `data/sample.dmp`,
+  - **nur ein Dateiname** (ohne Pfad) → wird in `data/testdata/` gesucht (auch
+    mit angehängtem `.bin`), z. B.
+    `simulate_meter.sh ISKRA_MT631-D2A51-V22-K0z_without_PIN.bin`,
+  - **absoluter/relativer Pfad** → wird direkt verwendet.
+  - In `data/testdata/` liegen ~37 SML-Aufzeichnungen realer Zähler (Quelle:
+    <https://github.com/devZer0/libsml-testing>), siehe `data/testdata/README.md`.
 
 ## Im Plugin testen
 

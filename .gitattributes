@@ -9,6 +9,7 @@
 
 # Binary test fixtures must never be line-ending normalized.
 *.dmp binary
+*.bin binary
 
 # Custom for Visual Studio
 *.cs     diff=csharp
