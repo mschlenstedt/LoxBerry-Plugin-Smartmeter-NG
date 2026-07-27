@@ -322,8 +322,8 @@ var meterText = {
 	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
 };
 var meterDefaults = {
-	sml: { baudrate: "300", parity: "8n1" },
-	d0:  { baudrate: "300", parity: "7e1" },
+	sml: { baudrate: "9600", parity: "8n1" },
+	d0:  { baudrate: "300",  parity: "7e1" },
 	oms: { baudrate: "9600", parity: "8n1" }
 };
 
