@@ -3,14 +3,14 @@
 # Test helper: simulates a serial SML meter without real hardware.
 #
 # Creates a virtual serial device with socat and feeds a captured SML dump
-# (data/sample.dmp) into it in a loop, so vzLogger reads it like a real reading
-# head. NOT wired into the web UI - run it by hand while testing.
+# (data/testdata/sample.bin) into it in a loop, so vzLogger reads it like a real
+# reading head. NOT wired into the web UI - run it by hand while testing.
 #
 # Usage:
 #   sudo ./simulate_meter.sh [DUMP]
 #
 #   DUMP may be:
-#     - omitted            -> the default sample (data/sample.dmp)
+#     - omitted            -> the default sample (data/testdata/sample.bin)
 #     - a bare filename    -> looked up in data/testdata/ (also tries <name>.bin),
 #                             e.g. ISKRA_MT631-D2A51-V22-K0z_without_PIN.bin
 #     - an absolute or relative path to any SML dump file
@@ -50,7 +50,7 @@ TESTDATA_DIR="$DATA_DIR/testdata"
 # Locate the SML dump to feed (see the Usage note above).
 ARG="${1:-}"
 if [ -z "$ARG" ]; then
-	DUMP="$DATA_DIR/sample.dmp"
+	DUMP="$TESTDATA_DIR/sample.bin"
 elif [ "$ARG" = "$(basename "$ARG")" ] && [ -r "$TESTDATA_DIR/$ARG" ]; then
 	DUMP="$TESTDATA_DIR/$ARG"
 elif [ "$ARG" = "$(basename "$ARG")" ] && [ -r "$TESTDATA_DIR/$ARG.bin" ]; then

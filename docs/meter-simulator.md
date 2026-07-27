@@ -3,8 +3,8 @@
 Zum Testen ohne Hardware liegt ein kleines Bash-Skript bei, das einen seriellen
 SML-Zähler simuliert: `bin/simulate_meter.sh`. Es erzeugt mit `socat` ein
 virtuelles serielles Gerät und speist ein mitgeliefertes SML-Dump
-(`data/sample.dmp`, ein echtes SML-Telegramm) in einer Schleife ein. vzLogger
-liest es wie einen echten Lesekopf. **Nicht** in der WebUI eingebunden.
+(`data/testdata/sample.bin`, ein echtes SML-Telegramm) in einer Schleife ein.
+vzLogger liest es wie einen echten Lesekopf. **Nicht** in der WebUI eingebunden.
 
 ## Verwendung
 
@@ -21,7 +21,7 @@ sudo /opt/loxberry/bin/plugins/smartmeter-ng/simulate_meter.sh
   `loxberry`). Anpassbar über `SMARTMETER_SIM_DEVICE`, Intervall über
   `SMARTMETER_SIM_INTERVAL`.
 - Dump-Datei optional als Argument:
-  - **ohne Argument** → Standard-Sample `data/sample.dmp`,
+  - **ohne Argument** → Standard-Sample `data/testdata/sample.bin`,
   - **nur ein Dateiname** (ohne Pfad) → wird in `data/testdata/` gesucht (auch
     mit angehängtem `.bin`), z. B.
     `simulate_meter.sh ISKRA_MT631-D2A51-V22-K0z_without_PIN.bin`,
@@ -38,20 +38,23 @@ sudo /opt/loxberry/bin/plugins/smartmeter-ng/simulate_meter.sh
 3. Beim Speichern läuft die **Auto-Discovery** und liest den simulierten Strom;
    die gefundenen OBIS-Kanäle erscheinen im **Kanäle**-Tab.
 
-Das Dump stammt aus <https://github.com/hn/smldump> (`sample.dmp`).
+Das Standard-Sample `data/testdata/sample.bin` stammt aus
+<https://github.com/hn/smldump> (dort `sample.dmp`).
 
-## Hinweis: CRC-Korrektur des Dumps
+## Hinweis: CRC-Korrektur des Standard-Samples
 
-Das Dump enthält drei SML-Messages (OPEN_RESPONSE, GET_LIST_RESPONSE mit den
+`sample.bin` enthält drei SML-Messages (OPEN_RESPONSE, GET_LIST_RESPONSE mit den
 Messwerten, CLOSE_RESPONSE). Die auf dem LoxBerry installierte `libsml`
 (Debian-Paket `libsml1`) **prüft die Per-Message-CRC** und verwirft Messages
 mit falscher Prüfsumme (`sml_message_parse(): crc mismatch, dropping message`).
-Im Original-Dump waren die CRCs von OPEN_ und GET_LIST_RESPONSE falsch — damit
-wurde ausgerechnet die Message mit den OBIS-Werten verworfen und die Discovery
-fand keine Kanäle (`Got 0 new readings`).
+Im Original-Dump von hn/smldump waren die CRCs von OPEN_ und GET_LIST_RESPONSE
+falsch — damit wurde ausgerechnet die Message mit den OBIS-Werten verworfen und
+die Discovery fand keine Kanäle (`Got 0 new readings`).
 
-Die CRCs in `data/sample.dmp` wurden daher mit `sml_crc16` neu berechnet (jede
-Message-CRC über den Bereich vom Message-Start `0x76` bis vor das CRC-Tag `0x63`,
-big-endian, plus die abschließende Transport-CRC über den ganzen Frame). Danach
-akzeptiert libsml alle drei Messages und vzLogger liefert die Kennzahlen
-`1-0:1.8.0` (Bezug), `1-0:2.8.0` (Einspeisung) und `1-0:16.7.0` (Leistung).
+Die CRCs in `data/testdata/sample.bin` wurden daher mit `sml_crc16` neu berechnet
+(jede Message-CRC über den Bereich vom Message-Start `0x76` bis vor das CRC-Tag
+`0x63`, big-endian, plus die abschließende Transport-CRC über den ganzen Frame,
+CRC-16/X-25). Danach akzeptiert libsml alle drei Messages und vzLogger liefert
+die Kennzahlen `1-0:1.8.0` (Bezug), `1-0:2.8.0` (Einspeisung) und
+`1-0:16.7.0` (Leistung). Die Korrektur wurde als Pull Request an hn/smldump
+zurückgemeldet.

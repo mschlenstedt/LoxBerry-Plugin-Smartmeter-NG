@@ -9,8 +9,8 @@ sudo ./simulate_meter.sh ISKRA_MT631-D2A51-V22-K0z_without_PIN.bin
 ```
 
 Wird nur ein Dateiname (ohne Pfad) übergeben, sucht das Skript hier in
-`data/testdata/`. Ohne Argument wird das Standard-Sample `data/sample.dmp`
-verwendet.
+`data/testdata/`. Ohne Argument wird das Standard-Sample
+`data/testdata/sample.bin` verwendet.
 
 ## Herkunft der Daten
 
@@ -21,8 +21,8 @@ Die Dumps stammen aus zwei öffentlichen Git-Repositories:
   Holley, Itron, EasyMeter, eBZ, Dr. Neuhaus u. a.). Jede `.bin` ist ein
   roher SML-Transportstrom (teils mehrere Telegramme hintereinander).
 
-- **`data/sample.dmp`** (Standard-Sample, eine Ebene höher) —
-  <https://github.com/hn/smldump>
+- **`data/testdata/sample.bin`** (Standard-Sample) —
+  <https://github.com/hn/smldump> (dort `sample.dmp`).
   Dessen Per-Message-CRCs waren fehlerhaft und wurden für die auf dem LoxBerry
   installierte `libsml` mit `sml_crc16` neu berechnet (Details in
   `docs/meter-simulator.md`).
