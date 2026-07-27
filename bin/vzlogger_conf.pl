@@ -81,7 +81,15 @@ die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter
 
 # ---------------------------------------------------------------------------
 
-sub encode_config { return JSON::PP->new->utf8->canonical->pretty->encode($_[0]); }
+sub encode_config
+{
+	my $json = JSON::PP->new->utf8->canonical->pretty->encode($_[0]);
+	# vzLogger's "random" protocol requires min/max as JSON doubles and throws on
+	# integers; JSON::PP emits whole numbers without a decimal, so append ".0" to
+	# integer min/max values (these keys only occur in random meters).
+	$json =~ s/("(?:min|max)"\s*:\s*-?\d+)(?=\s*[,\n}])/$1.0/g;
+	return $json;
+}
 
 sub decode_input
 {
@@ -168,15 +176,17 @@ sub meter_validate
 	my ($data, $form, $skip_idx) = @_;
 	my $name   = trimmed($form->{name});
 	my $device = trimmed($form->{device});
+	my $proto  = trimmed($form->{protocol});
 	return (0, "UI_METER_INVALID_NAME")     if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/);
-	return (0, "UI_METER_INVALID_DEVICE")   if ($device !~ m{\A/dev/[A-Za-z0-9_./-]{1,120}\z});
-	return (0, "UI_METER_INVALID_PROTOCOL") if (trimmed($form->{protocol}) !~ /\A(?:sml|d0|oms)\z/);
+	return (0, "UI_METER_INVALID_PROTOCOL") if ($proto !~ /\A(?:sml|d0|oms|random)\z/);
+	# The random test protocol has no device; every real protocol needs one.
+	return (0, "UI_METER_INVALID_DEVICE")   if ($proto ne "random" && $device !~ m{\A/dev/[A-Za-z0-9_./-]{1,120}\z});
 	for my $i (0 .. $#{$data->{meters}}) {
 		next if (defined($skip_idx) && $i == $skip_idx);
 		my $m = $data->{meters}[$i];
 		next if (ref($m) ne "HASH");
 		return (0, "UI_METER_DUPLICATE_NAME")   if (defined($m->{name}) && $m->{name} eq $name);
-		return (0, "UI_METER_DUPLICATE_DEVICE") if (defined($m->{device}) && $m->{device} eq $device);
+		return (0, "UI_METER_DUPLICATE_DEVICE") if ($device ne "" && defined($m->{device}) && $m->{device} eq $device);
 	}
 	return (1, "");
 }
@@ -255,6 +265,11 @@ sub normalize_meter
 		set_if($m, "key", trimmed($form->{key}));
 		$m->{use_local_time} = as_bool($form->{use_local_time});
 		$m->{mbus_debug}     = JSON::PP::false;
+	} elsif ($proto eq "random") {
+		# Test protocol: generates random values, no device needed.
+		delete $m->{device};
+		$m->{min} = as_double($form->{min}, 0);
+		$m->{max} = as_double($form->{max}, 100);
 	}
 	return $m;
 }
@@ -262,6 +277,7 @@ sub normalize_meter
 sub set_if { my ($h, $k, $v) = @_; $h->{$k} = "$v" if (defined($v) && $v ne ""); }
 sub as_bool { my ($v) = @_; return (defined($v) && $v ne "" && $v ne "0" && $v ne "false") ? JSON::PP::true : JSON::PP::false; }
 sub as_int { my ($v, $d) = @_; return (defined($v) && !ref($v) && $v =~ /\A\s*(-?\d+)\s*\z/) ? int($1) : $d; }
+sub as_double { my ($v, $d) = @_; return (defined($v) && !ref($v) && $v =~ /\A\s*(-?\d+(?:\.\d+)?)\s*\z/) ? ($1 + 0) : $d; }
 sub valid_parity { my ($v, $d) = @_; $v = trimmed($v); return ($v =~ /\A(?:8n1|7n1|7e1|7o1)\z/) ? $v : $d; }
 sub trimmed { my ($v) = @_; return "" if (!defined($v) || ref($v)); $v =~ s/\A\s+|\s+\z//g; return $v; }
 

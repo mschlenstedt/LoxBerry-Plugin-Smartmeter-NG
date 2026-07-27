@@ -46,11 +46,12 @@
 					<option value="sml">SML</option>
 					<option value="d0">D0</option>
 					<option value="oms">OMS</option>
+					<option value="random">Random (Test)</option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_PROTOCOL_HELP></div>
 			</div>
 
-			<div class="lb-form-row">
+			<div class="lb-form-row meter-row" data-proto="sml d0 oms">
 				<label class="lb-form-label" for="meter-device"><TMPL_VAR VZLOGGER.MET_DEVICE> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
 				<div class="lb-form-field"><select class="lb-select" id="meter-device"></select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_DEVICE_HELP></div>
@@ -137,6 +138,18 @@
 					<option value="1"><TMPL_VAR COMMON.YES></option>
 				</select></div>
 				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_USELOCALTIME_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="random">
+				<label class="lb-form-label" for="meter-min"><TMPL_VAR VZLOGGER.MET_MIN> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="number" step="any" id="meter-min" value="0"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_MIN_HELP></div>
+			</div>
+
+			<div class="lb-form-row meter-row" data-proto="random">
+				<label class="lb-form-label" for="meter-max"><TMPL_VAR VZLOGGER.MET_MAX> <a class="sm-help" href="https://wiki.volkszaehler.org/software/controller/vzlogger/vzlogger_conf_parameter#meters" target="_blank" rel="noopener" title="Volkszähler-Wiki">?</a></label>
+				<div class="lb-form-field"><input class="lb-input" type="number" step="any" id="meter-max" value="100"></div>
+				<div class="lb-form-help"><TMPL_VAR VZLOGGER.MET_MAX_HELP></div>
 			</div>
 
 			<div class="lb-actions">

@@ -338,6 +338,10 @@ function meterApplyProto(proto, resetDefaults) {
 		$("#meter-baudrate-read").val(meterDefaults[proto].baudrate);
 		$("#meter-parity").val(meterDefaults[proto].parity);
 	}
+	if (resetDefaults && proto === "random") {
+		$("#meter-min").val("0");
+		$("#meter-max").val("100");
+	}
 }
 
 function meterLoadList() {
@@ -384,7 +388,9 @@ function meterGather() {
 		wait_sync:             $("#meter-wait-sync").val(),
 		baudrate_change_delay: $("#meter-bcd").val(),
 		key:                   $("#meter-key").val(),
-		use_local_time:        $("#meter-uselocaltime").val()
+		use_local_time:        $("#meter-uselocaltime").val(),
+		min:                   $("#meter-min").val(),
+		max:                   $("#meter-max").val()
 	};
 }
 
@@ -445,6 +451,8 @@ function meterEdit(name) {
 	$("#meter-bcd").val(m.baudrate_change_delay != null ? m.baudrate_change_delay : 0);
 	$("#meter-key").val(m.key || "");
 	$("#meter-uselocaltime").val(m.use_local_time ? "1" : "0");
+	$("#meter-min").val(m.min != null ? m.min : "0");
+	$("#meter-max").val(m.max != null ? m.max : "100");
 	$("#meter-form-title").text(meterText.EDIT);
 	meterStatusClear();
 }
@@ -463,6 +471,8 @@ function meterFormReset() {
 	$("#meter-wait-sync").val("off");
 	$("#meter-bcd").val("0");
 	$("#meter-uselocaltime").val("0");
+	$("#meter-min").val("0");
+	$("#meter-max").val("100");
 	$("#meter-form-title").text(meterText.ADD);
 	meterStatusClear();
 }

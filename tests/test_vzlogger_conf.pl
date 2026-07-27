@@ -151,4 +151,18 @@ write_file("$dir/r1.json", JSON::PP->new->encode({ name => "Keller" }));
 $c = JSON::PP->new->decode((run_conf("remove-meter", "$dir/r1.json"))[0]);
 is(scalar(@{$c->{meters}}), 0, "meter removed");
 
+# Random test meter: no device required, min/max written as JSON doubles.
+unlink("$dir/vzlogger.conf");
+write_file("$dir/rnd.json", JSON::PP->new->encode({
+	name => "Test", enabled => "1", protocol => "random", interval => "2", min => "5", max => "40",
+}));
+($out, $rc) = run_conf("add-meter", "$dir/rnd.json");
+is($rc, 0, "add random meter exits cleanly");
+like($out, qr/"min"\s*:\s*5\.0/, "min is written as a JSON double");
+like($out, qr/"max"\s*:\s*40\.0/, "max is written as a JSON double");
+$c = JSON::PP->new->decode($out);
+ok(!$c->{error_key}, "random meter is accepted without a device");
+is($c->{meters}[0]{protocol}, "random", "random protocol stored");
+ok(!exists $c->{meters}[0]{device}, "random meter has no device");
+
 done_testing();
