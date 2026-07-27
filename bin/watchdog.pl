@@ -6,16 +6,18 @@
 # systemd service, so the plugin owns its lifecycle. The packaged systemd unit
 # is disabled by bin/vzlogger_pkg.sh.
 #
-# Usage: watchdog.pl --action=start|stop|restart|check|status [--verbose]
+# Usage: watchdog.pl --action=start|stop|stop-discovery|restart|check|status [--verbose]
 #
-#   start    start vzlogger unless it is already running
-#   stop     stop vzlogger and remember that this was intentional
-#   restart  stop, then start
-#   check    restart vzlogger if it died unexpectedly (called from cron)
-#   status   exit 0 if vzlogger is running, 1 otherwise
+#   start           start vzlogger unless it is already running
+#   stop            stop vzlogger and remember that this was intentional
+#   stop-discovery  stop vzlogger WITHOUT the marker (used by OBIS discovery to
+#                   free the device; a following "check" restarts it)
+#   restart         stop, then start
+#   check           restart vzlogger if it died unexpectedly (called from cron)
+#   status          exit 0 if vzlogger is running, 1 otherwise
 #
 # A manual stop writes a marker file so the periodic check does not start the
-# process again behind the user's back.
+# process again behind the user's back. stop-discovery does not write it.
 
 use strict;
 use warnings;
@@ -72,12 +74,13 @@ if ($lockstate) {
 my $exit = 0;
 if ($action eq "start") { $exit = do_start(); }
 elsif ($action eq "stop") { $exit = do_stop(1); }
+elsif ($action eq "stop-discovery") { $exit = do_stop(0); }
 elsif ($action eq "restart") { $exit = do_restart(); }
 elsif ($action eq "check") { $exit = do_check(); }
 elsif ($action eq "status") { $exit = vzlogger_running() ? 0 : 1; }
 else {
-	LOGERR("No valid action. --action=start|stop|restart|check|status is required.");
-	print "No valid action specified. --action=start|stop|restart|check|status is required.\n";
+	LOGERR("No valid action. --action=start|stop|stop-discovery|restart|check|status is required.");
+	print "No valid action specified. --action=start|stop|stop-discovery|restart|check|status is required.\n";
 	$exit = 2;
 }
 

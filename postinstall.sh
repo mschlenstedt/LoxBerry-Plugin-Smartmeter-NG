@@ -18,6 +18,7 @@ ARGV5=$5 # Fifth argument is Base folder of LoxBerry
 /bin/chmod +x $ARGV5/bin/plugins/$ARGV3/vzlogger_pkg.sh
 /bin/chmod +x $ARGV5/bin/plugins/$ARGV3/watchdog.pl
 /bin/chmod +x $ARGV5/bin/plugins/$ARGV3/vzlogger_conf.pl
+/bin/chmod +x $ARGV5/bin/plugins/$ARGV3/vzlogger_discover.pl
 /bin/chmod +x $ARGV5/webfrontend/htmlauth/plugins/$ARGV3/ajax.cgi
 /bin/chmod +x $ARGV5/webfrontend/htmlauth/plugins/$ARGV3/usb_devices.cgi
 

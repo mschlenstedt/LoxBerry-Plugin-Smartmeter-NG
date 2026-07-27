@@ -86,6 +86,20 @@ sub vz_conf_write
 	return { ok => JSON::PP::true, config => $res };
 }
 
+# Runs the (blocking) OBIS discovery for one meter and returns its candidate
+# channels. The meter name is constrained, so it is safe to pass on the command
+# line.
+sub vz_discover
+{
+	my ($meter) = @_;
+	$meter = "" if (!defined($meter));
+	return { ok => JSON::PP::false, error_key => "UI_DISCOVER_METER_NOT_FOUND" } if ($meter !~ /\A[A-Za-z0-9_-]{1,64}\z/);
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/vzlogger_discover.pl --meter='$meter' 2>/dev/null");
+	my $res = eval { JSON::PP->new->relaxed->decode(defined($out) ? $out : "") };
+	return { ok => JSON::PP::false, error_key => "UI_AJAX_FAILED" } if ($@ || ref($res) ne "HASH");
+	return $res;
+}
+
 if ($action eq "irheads-list") {
 	$response = { ok => JSON::PP::true, head_lists() };
 }
@@ -136,6 +150,12 @@ elsif ($action eq "vzconf-add-channel") {
 }
 elsif ($action eq "vzconf-remove-channel") {
 	$response = is_post() ? vz_conf_write("remove-channel", $q->{channel}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "vzconf-add-channels") {
+	$response = is_post() ? vz_conf_write("add-channels", $q->{channels}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+}
+elsif ($action eq "meter-discover") {
+	$response = is_post() ? vz_discover($q->{meter}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
 else {
 	$response = { ok => JSON::PP::false, error_key => "UI_UNKNOWN_ACTION" };

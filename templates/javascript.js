@@ -431,7 +431,13 @@ function meterSave() {
 	var action = form.original_name ? "vzconf-update-meter" : "vzconf-add-meter";
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action, meter: JSON.stringify(form) } })
 		.done(function(data) {
-			if (meterApply(data)) { meterFormReset(); meterStatus(meterText.SAVED, "ok"); }
+			if (meterApply(data)) {
+				var savedName = form.name, savedProto = form.protocol;
+				meterFormReset();
+				// Auto-run OBIS discovery for real protocols; test protocols have none.
+				if (/^(?:sml|d0|oms)$/.test(savedProto)) { meterAutoDiscover(savedName); }
+				else { meterStatus(meterText.SAVED, "ok"); }
+			}
 		})
 		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, "error"); });
 }
@@ -494,6 +500,29 @@ function meterFormReset() {
 	meterStatusClear();
 }
 
+var meterDiscMsg = {
+	RUNNING: "<TMPL_VAR VZLOGGER.MET_DISC_RUNNING>",
+	NONE:    "<TMPL_VAR VZLOGGER.MET_DISC_NONE>",
+	DONE:    "<TMPL_VAR VZLOGGER.MET_DISC_DONE>"
+};
+
+// Runs discovery after saving a meter and adds all newly found channels.
+function meterAutoDiscover(name) {
+	meterStatus(meterDiscMsg.RUNNING, "info");
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "meter-discover", meter: name } })
+		.done(function(data) {
+			var cands = (data && data.ok && data.channels) ? data.channels : [];
+			if (!cands.length) { meterStatus(meterDiscMsg.NONE, "info"); return; }
+			$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channels", channels: JSON.stringify({ meter: name, channels: cands }) } })
+				.done(function(r) {
+					if (r && r.ok) { meterStatus(meterDiscMsg.DONE.replace("{n}", cands.length), "ok"); }
+					else { meterStatus(meterText.SAVED, "ok"); }
+				})
+				.fail(function() { meterStatus(meterText.SAVED, "ok"); });
+		})
+		.fail(function() { meterStatus(meterText.SAVED, "ok"); });
+}
+
 // =========================================================== CHANNELS TAB
 
 var channelMsg = {
@@ -502,7 +531,13 @@ var channelMsg = {
 	UI_CHANNEL_INVALID_IDENTIFIER: "<TMPL_VAR VZLOGGER.UI_CHANNEL_INVALID_IDENTIFIER>",
 	UI_CHANNEL_DUPLICATE_NAME:     "<TMPL_VAR VZLOGGER.UI_CHANNEL_DUPLICATE_NAME>",
 	UI_CHANNEL_NOT_FOUND:          "<TMPL_VAR VZLOGGER.UI_CHANNEL_NOT_FOUND>",
+	UI_DISCOVER_METER_NOT_FOUND:   "<TMPL_VAR VZLOGGER.UI_DISCOVER_METER_NOT_FOUND>",
 	UI_AJAX_FAILED:                "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
+};
+var discText = {
+	RUNNING: "<TMPL_VAR VZLOGGER.DISC_RUNNING>",
+	NONE:    "<TMPL_VAR VZLOGGER.DISC_NONE>",
+	SAVED:   "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
 };
 var channelText = {
 	NONE:       "<TMPL_VAR VZLOGGER.CH_NONE>",
@@ -523,11 +558,14 @@ function channelLoad() {
 }
 
 function channelFillMeters(meters) {
-	var sel = $("#ch-meter");
-	var current = sel.val();
-	sel.empty();
-	meters.forEach(function(m) { sel.append($("<option>").val(m.name).text(m.name)); });
-	if (current) { sel.val(current); }
+	["#ch-meter", "#disc-meter"].forEach(function(id) {
+		var sel = $(id);
+		if (!sel.length) { return; }
+		var current = sel.val();
+		sel.empty();
+		meters.forEach(function(m) { sel.append($("<option>").val(m.name).text(m.name)); });
+		if (current) { sel.val(current); }
+	});
 }
 
 function channelRenderList(meters) {
@@ -575,6 +613,66 @@ function channelDelete(meter, uuid) {
 			}
 		})
 		.fail(function() { channelStatus(channelMsg.UI_AJAX_FAILED, "error"); });
+}
+
+// OBIS auto-discovery: runs vzLogger briefly against the meter and lists the
+// found identifiers as candidate channels to pick from.
+function discoverStart() {
+	var meter = $("#disc-meter").val();
+	if (!meter) { return; }
+	$("#disc-results").hide();
+	smStatus("#disc-status", discText.RUNNING, "info");
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "meter-discover", meter: meter } })
+		.done(function(data) {
+			if (data && data.ok) {
+				var cands = data.channels || [];
+				discoverRender(cands);
+				if (!cands.length) { smStatus("#disc-status", discText.NONE, "info"); }
+				else { $("#disc-status").hide(); }
+			} else {
+				smStatus("#disc-status", (data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
+			}
+		})
+		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); });
+}
+
+function discoverRender(cands) {
+	var body = $("#disc-body").empty();
+	cands.forEach(function(ch) {
+		var row = $("<tr>").attr("data-identifier", ch.identifier);
+		row.append('<td><input type="checkbox" class="disc-pick" checked></td>');
+		row.append($("<td>").css("font-family", "var(--lb-font-mono)").text(ch.identifier));
+		var nameInput = $('<input class="lb-input disc-name" type="text">').val(ch.name);
+		nameInput.on("input", function() { this.value = this.value.replace(/[^A-Za-z0-9_-]/g, ""); });
+		row.append($("<td>").append(nameInput));
+		body.append(row);
+	});
+	$("#disc-results").toggle(cands.length > 0);
+}
+
+function discoverApply() {
+	var meter = $("#disc-meter").val();
+	var chans = [];
+	$("#disc-body tr").each(function() {
+		if (!$(this).find(".disc-pick").is(":checked")) { return; }
+		var name = $(this).find(".disc-name").val();
+		var ident = $(this).attr("data-identifier");
+		if (name && ident) { chans.push({ identifier: ident, name: name }); }
+	});
+	if (!chans.length) { return; }
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channels", channels: JSON.stringify({ meter: meter, channels: chans }) } })
+		.done(function(data) {
+			if (data && data.ok) {
+				var meters = (data.config && data.config.meters) ? data.config.meters : [];
+				channelFillMeters(meters);
+				channelRenderList(meters);
+				$("#disc-results").hide();
+				smStatus("#disc-status", discText.SAVED, "ok");
+			} else {
+				smStatus("#disc-status", (data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
+			}
+		})
+		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); });
 }
 
 </script>

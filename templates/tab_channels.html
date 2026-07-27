@@ -53,4 +53,39 @@
 	</div>
 </details>
 
+<details class="lb-collapsible" open>
+	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.DISC_HEADING></summary>
+	<div class="lb-collapsible-content">
+		<p style="color:var(--lb-text-muted); font-size:0.85rem; line-height:1.5; margin:0 0 12px;"><TMPL_VAR VZLOGGER.DISC_HINT></p>
+
+		<div class="lb-form-row">
+			<label class="lb-form-label" for="disc-meter"><TMPL_VAR VZLOGGER.DISC_METER></label>
+			<div class="lb-form-field"><select class="lb-select" id="disc-meter"></select></div>
+		</div>
+
+		<div class="lb-actions" style="margin-top:1em;">
+			<button type="button" class="lb-btn lb-btn-primary" onclick="discoverStart(); return false;"><TMPL_VAR VZLOGGER.DISC_BUTTON></button>
+		</div>
+		<div id="disc-status" style="display:none; text-align:center; margin-top:0.5em;"></div>
+
+		<div id="disc-results" style="display:none; margin-top:1em;">
+			<div class="lb-table-responsive">
+			<table class="lb-table">
+				<thead>
+					<tr>
+						<th></th>
+						<th><TMPL_VAR VZLOGGER.CH_COL_IDENTIFIER></th>
+						<th><TMPL_VAR VZLOGGER.CH_COL_NAME></th>
+					</tr>
+				</thead>
+				<tbody id="disc-body"></tbody>
+			</table>
+			</div>
+			<div class="lb-actions" style="margin-top:1em;">
+				<button type="button" class="lb-btn lb-btn-primary" onclick="discoverApply(); return false;"><TMPL_VAR VZLOGGER.DISC_APPLY></button>
+			</div>
+		</div>
+	</div>
+</details>
+
 </div>

@@ -76,10 +76,13 @@ if ($action eq "add-meter" || $action eq "update-meter" || $action eq "remove-me
 	print encode_config($data);
 	exit 0;
 }
-if ($action eq "add-channel" || $action eq "remove-channel") {
+if ($action eq "add-channel" || $action eq "remove-channel" || $action eq "add-channels") {
 	my $form = decode_input(read_input(shift(@ARGV)), "channel");
 	my $data = load_config() || skeleton();
-	my ($ok, $err) = ($action eq "add-channel") ? channel_add($data, $form) : channel_remove($data, $form);
+	my ($ok, $err);
+	if    ($action eq "add-channel")    { ($ok, $err) = channel_add($data, $form); }
+	elsif ($action eq "remove-channel") { ($ok, $err) = channel_remove($data, $form); }
+	else                                { ($ok, $err) = channels_add_many($data, $form); }
 	if (!$ok) { print encode_config({ error_key => $err }); exit 0; }
 	enforce_auto($data);
 	save_config($data) or die "Could not write $config_file\n";
@@ -87,7 +90,7 @@ if ($action eq "add-channel" || $action eq "remove-channel") {
 	exit 0;
 }
 
-die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]\n";
+die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]|add-channels [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
@@ -341,6 +344,28 @@ sub channel_add
 		return (0, "UI_CHANNEL_DUPLICATE_NAME") if (ref($ch) eq "HASH" && defined($ch->{name}) && $ch->{name} eq $name);
 	}
 	push @{$meter->{channels}}, channel_entry($meter_name, $ident, $name, undef);
+	return (1, "");
+}
+
+# Adds several channels at once (used by "apply selected" and by the automatic
+# discovery on meter save). Existing names and invalid entries are skipped, so it
+# is idempotent.
+sub channels_add_many
+{
+	my ($data, $form) = @_;
+	my $meter_name = trimmed($form->{meter});
+	my $idx = meter_index($data, $meter_name);
+	return (0, "UI_CHANNEL_METER_NOT_FOUND") if ($idx < 0);
+	my $meter = $data->{meters}[$idx];
+	$meter->{channels} = [] if (ref($meter->{channels}) ne "ARRAY");
+	my %have = map { (ref($_) eq "HASH" && defined($_->{name})) ? ($_->{name} => 1) : () } @{$meter->{channels}};
+	foreach my $ch (@{ref($form->{channels}) eq "ARRAY" ? $form->{channels} : []}) {
+		next if (ref($ch) ne "HASH");
+		my $name  = trimmed($ch->{name});
+		my $ident = trimmed($ch->{identifier});
+		next if ($name !~ /\A[A-Za-z0-9_-]{1,64}\z/ || $ident eq "" || $have{$name}++);
+		push @{$meter->{channels}}, channel_entry($meter_name, $ident, $name, undef);
+	}
 	return (1, "");
 }
 

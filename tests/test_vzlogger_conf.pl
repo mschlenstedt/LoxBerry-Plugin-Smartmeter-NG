@@ -215,4 +215,15 @@ write_file("$dir/cr.json", JSON::PP->new->encode({ meter => "Keller", uuid => $c
 $c = JSON::PP->new->decode((run_conf("remove-channel", "$dir/cr.json"))[0]);
 is(scalar(@{$c->{meters}[0]{channels}}), 0, "channel removed");
 
+# add-channels adds several at once, skipping invalid and existing names.
+write_file("$dir/cb.json", JSON::PP->new->encode({ name => "Multi", protocol => "sml", device => "/dev/ttyUSB2" }));
+run_conf("add-meter", "$dir/cb.json");
+write_file("$dir/cbatch.json", JSON::PP->new->encode({
+	meter    => "Multi",
+	channels => [ { identifier => "1-0:1.8.0", name => "Bezug" }, { identifier => "1-0:2.8.0", name => "Lieferung" }, { identifier => "x", name => "bad name" } ],
+}));
+$c = JSON::PP->new->decode((run_conf("add-channels", "$dir/cbatch.json"))[0]);
+my ($mm) = grep { $_->{name} eq "Multi" } @{$c->{meters}};
+is(scalar(@{$mm->{channels}}), 2, "two valid channels added, the invalid one skipped");
+
 done_testing();

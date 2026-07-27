@@ -80,6 +80,7 @@ jobs:
 
           perl -I .github/ci/perl-lib -I bin tests/test_irheads.pl
           perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_conf.pl
+          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_discover.pl
           perl tests/test_language_resources.pl
 
       - name: Test test-device file normalization
