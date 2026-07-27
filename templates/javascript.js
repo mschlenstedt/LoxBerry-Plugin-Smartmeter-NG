@@ -257,8 +257,18 @@ function smServiceRun(action) {
 		.always(function() { smInterval = window.setInterval(smServiceStatus, 5000); });
 }
 
-function smServiceRestart() { smServiceRun("vz-restart"); }
-function smServiceStop() { smServiceRun("vz-stop"); }
+// While a save or an OBIS discovery runs, lock out the actions that would race
+// with it: the Restart/Stop service buttons (<a>, so via pointer-events) and any
+// button marked ".sm-busy-disable" (Save / discovery buttons on the current tab).
+var smBusy = false;
+function smSetBusy(on) {
+	smBusy = !!on;
+	$(".vzsvc-btn").css({ "pointer-events": on ? "none" : "", opacity: on ? "0.5" : "" });
+	$(".sm-busy-disable").prop("disabled", !!on);
+}
+
+function smServiceRestart() { if (smBusy) { return; } smServiceRun("vz-restart"); }
+function smServiceStop() { if (smBusy) { return; } smServiceRun("vz-stop"); }
 
 // =========================================================== SETTINGS TAB
 
@@ -434,17 +444,21 @@ function meterApply(data, ok) {
 function meterSave() {
 	var form = meterGather();
 	var action = form.original_name ? "vzconf-update-meter" : "vzconf-add-meter";
+	smSetBusy(true);
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action, meter: JSON.stringify(form) } })
 		.done(function(data) {
 			if (meterApply(data)) {
 				var savedName = form.name, savedProto = form.protocol;
 				meterFormReset();
 				// Auto-run OBIS discovery for real protocols; test protocols have none.
+				// Discovery keeps the busy lock and releases it when it finishes.
 				if (/^(?:sml|d0|oms)$/.test(savedProto)) { meterAutoDiscover(savedName); }
-				else { meterStatus(meterText.SAVED, "ok"); }
+				else { meterStatus(meterText.SAVED, "ok"); smSetBusy(false); }
+			} else {
+				smSetBusy(false);
 			}
 		})
-		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, "error"); });
+		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, "error"); smSetBusy(false); });
 }
 
 function meterDelete(name) {
@@ -517,15 +531,16 @@ function meterAutoDiscover(name) {
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "meter-discover", meter: name } })
 		.done(function(data) {
 			var cands = (data && data.ok && data.channels) ? data.channels : [];
-			if (!cands.length) { meterStatus(meterDiscMsg.NONE, "info"); return; }
+			if (!cands.length) { meterStatus(meterDiscMsg.NONE, "info"); smSetBusy(false); return; }
 			$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channels", channels: JSON.stringify({ meter: name, channels: cands }) } })
 				.done(function(r) {
 					if (r && r.ok) { meterStatus(meterDiscMsg.DONE.replace("{n}", cands.length), "ok"); }
 					else { meterStatus(meterText.SAVED, "ok"); }
 				})
-				.fail(function() { meterStatus(meterText.SAVED, "ok"); });
+				.fail(function() { meterStatus(meterText.SAVED, "ok"); })
+				.always(function() { smSetBusy(false); });
 		})
-		.fail(function() { meterStatus(meterText.SAVED, "ok"); });
+		.fail(function() { meterStatus(meterText.SAVED, "ok"); smSetBusy(false); });
 }
 
 // =========================================================== CHANNELS TAB
@@ -627,6 +642,7 @@ function discoverStart() {
 	if (!meter) { return; }
 	$("#disc-results").hide();
 	smStatus("#disc-status", discText.RUNNING, "info");
+	smSetBusy(true);
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "meter-discover", meter: meter } })
 		.done(function(data) {
 			if (data && data.ok) {
@@ -638,7 +654,8 @@ function discoverStart() {
 				smStatus("#disc-status", (data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
 			}
 		})
-		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); });
+		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); })
+		.always(function() { smSetBusy(false); });
 }
 
 function discoverRender(cands) {
@@ -665,6 +682,7 @@ function discoverApply() {
 		if (name && ident) { chans.push({ identifier: ident, name: name }); }
 	});
 	if (!chans.length) { return; }
+	smSetBusy(true);
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channels", channels: JSON.stringify({ meter: meter, channels: chans }) } })
 		.done(function(data) {
 			if (data && data.ok) {
@@ -677,7 +695,8 @@ function discoverApply() {
 				smStatus("#disc-status", (data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
 			}
 		})
-		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); });
+		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); })
+		.always(function() { smSetBusy(false); });
 }
 
 </script>
