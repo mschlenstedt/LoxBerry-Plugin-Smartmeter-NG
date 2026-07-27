@@ -22,7 +22,10 @@
 		<div class="lb-form-help"><TMPL_VAR VZLOGGER.SET_RETRY_HELP></div>
 	</div>
 
-	<span id="set-savinghint"></span>
+	<div class="lb-actions" style="margin-top:1em;">
+		<button type="button" class="lb-btn lb-btn-primary" onclick="setSave(); return false;"><TMPL_VAR COMMON.SAVE></button>
+	</div>
+	<div id="set-savinghint" style="display:none; text-align:center; margin-top:0.5em;"></div>
 
 </form>
 

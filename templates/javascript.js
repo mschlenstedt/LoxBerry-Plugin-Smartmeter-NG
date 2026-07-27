@@ -49,7 +49,6 @@ $(function() {
 	// Settings tab: load current values, then auto-save on blur (like the
 	// Audioserver4Home gateway settings). Config changes need a service restart.
 	if (document.getElementById("settings-form")) {
-		$("#set-topic, #set-localport, #set-retry").on("blur", setSaveSettings);
 		setLoad();
 	}
 
@@ -183,6 +182,13 @@ function smEsc(value) {
 	return $("<div>").text(value == null ? "" : value).html();
 }
 
+// Coloured status line shown under a Save button: green = ok, red = error,
+// blue = neutral/in progress.
+function smStatus(sel, text, kind) {
+	var color = kind === "ok" ? "#4a9e2f" : (kind === "error" ? "#c0392b" : "#2274c6");
+	$(sel).text(text).css({ display: "block", "text-align": "center", "margin-top": "0.5em", color: color });
+}
+
 function smServiceRender() {
 	document.getElementById("vz-service").innerHTML =
 		'<div class="vzsvc">' +
@@ -249,7 +255,6 @@ var setMsg = {
 	SAVING_FAILED: "<TMPL_VAR COMMON.HINT_SAVING_FAILED>",
 	SAVED_RESTART: "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
 };
-var setAutosave = false;
 
 function setLoad() {
 	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "vzconf-get" } })
@@ -261,24 +266,23 @@ function setLoad() {
 				$("#set-localport").val(local.port || "");
 				$("#set-retry").val(data.config.retry != null ? data.config.retry : "");
 			}
-		})
-		.always(function() { setAutosave = true; });
+		});
 }
 
-function setSaveSettings() {
-	if (!setAutosave) return;
+// Saves only when the user clicks the Save button (no auto-save on change).
+function setSave() {
 	var patch = {
 		retry: $("#set-retry").val(),
 		local: { port: $("#set-localport").val() },
 		mqtt:  { topic: $("#set-topic").val() }
 	};
-	$("#set-savinghint").attr("style", "color:blue").html(smEsc(setMsg.SAVING));
+	smStatus("#set-savinghint", setMsg.SAVING, "info");
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-set-settings", settings: JSON.stringify(patch) } })
 		.done(function(data) {
-			if (data && data.ok) { $("#set-savinghint").attr("style", "color:orange").html(smEsc(setMsg.SAVED_RESTART)); }
-			else { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); }
+			if (data && data.ok) { smStatus("#set-savinghint", setMsg.SAVED_RESTART, "ok"); }
+			else { smStatus("#set-savinghint", setMsg.SAVING_FAILED, "error"); }
 		})
-		.fail(function() { $("#set-savinghint").attr("style", "color:red").html(smEsc(setMsg.SAVING_FAILED)); });
+		.fail(function() { smStatus("#set-savinghint", setMsg.SAVING_FAILED, "error"); });
 }
 
 // =========================================================== SMARTMETER TAB
@@ -394,8 +398,8 @@ function meterGather() {
 	};
 }
 
-function meterStatus(message, ok) {
-	$("#meter-status").text(message).css("display", "block").toggleClass("lb-callout-warning", !ok);
+function meterStatus(message, kind) {
+	smStatus("#meter-status", message, kind);
 }
 
 function meterStatusClear() {
@@ -408,7 +412,7 @@ function meterApply(data, ok) {
 		meterRenderList();
 		return true;
 	}
-	meterStatus((data && meterMsg[data.error_key]) || meterMsg.UI_AJAX_FAILED, false);
+	meterStatus((data && meterMsg[data.error_key]) || meterMsg.UI_AJAX_FAILED, "error");
 	return false;
 }
 
@@ -417,16 +421,16 @@ function meterSave() {
 	var action = form.original_name ? "vzconf-update-meter" : "vzconf-add-meter";
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action, meter: JSON.stringify(form) } })
 		.done(function(data) {
-			if (meterApply(data)) { meterFormReset(); meterStatus(meterText.SAVED, true); }
+			if (meterApply(data)) { meterFormReset(); meterStatus(meterText.SAVED, "ok"); }
 		})
-		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, false); });
+		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, "error"); });
 }
 
 function meterDelete(name) {
 	if (!window.confirm(meterText.DELCONFIRM)) { return; }
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-remove-meter", meter: JSON.stringify({ name: name }) } })
-		.done(function(data) { if (meterApply(data)) { meterStatus(meterText.SAVED, true); } })
-		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, false); });
+		.done(function(data) { if (meterApply(data)) { meterStatus(meterText.SAVED, "ok"); } })
+		.fail(function() { meterStatus(meterMsg.UI_AJAX_FAILED, "error"); });
 }
 
 function meterEdit(name) {
