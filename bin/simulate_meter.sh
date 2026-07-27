@@ -65,7 +65,12 @@ socat PTY,link="$FEED",raw,echo=0 PTY,link="$DEVICE",raw,echo=0,mode=0660,group=
 SOCAT_PID=$!
 sleep 1
 
+# Hold the feed side open through a dedicated file descriptor. Otherwise every
+# "cat > $FEED" closes the PTY slave, socat sees EOF and exits, and the meter
+# stops receiving telegrams after the first one.
+exec 3>"$FEED"
+
 while true; do
-	cat "$DUMP" > "$FEED"
+	cat "$DUMP" >&3
 	sleep "$INTERVAL"
 done
