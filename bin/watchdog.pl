@@ -125,6 +125,11 @@ sub do_start
 		return 1;
 	}
 
+	# Re-derive the auto-managed fields (in particular the verbosity from the
+	# current plugin loglevel) so that changing the loglevel and restarting takes
+	# effect without a manual Save.
+	refresh_config();
+
 	my $logfile = vzlogger_logfile();
 	LOGINF("Starting $binary with $vzlogger_config");
 	my $pid = fork();
@@ -155,6 +160,21 @@ sub do_start
 	LOGOK("vzlogger started (PID $pid).");
 	print "Started vzlogger (PID $pid).\n";
 	return 0;
+}
+
+# Re-applies the auto-derived fields to the existing vzlogger.conf via the config
+# helper (verbosity from the live plugin loglevel, log path, local httpd, mqtt),
+# so a changed loglevel takes effect on the next start. Best effort: a failure is
+# logged but does not block the start with the previous config.
+sub refresh_config
+{
+	my $helper = "$FindBin::Bin/vzlogger_conf.pl";
+	if (!-e $helper) {
+		LOGWARN("Config helper not found ($helper); starting with existing config.");
+		return;
+	}
+	my $rc = system("perl '$helper' refresh >/dev/null 2>&1");
+	LOGWARN("Could not refresh vzLogger config before start (rc=$rc).") if ($rc != 0);
 }
 
 sub do_stop

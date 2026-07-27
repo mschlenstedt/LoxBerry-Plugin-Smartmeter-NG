@@ -61,6 +61,18 @@ if ($action eq "set-settings") {
 	print encode_config($data);
 	exit 0;
 }
+if ($action eq "refresh") {
+	# Re-derive only the auto-managed fields on the existing config (verbosity from
+	# the live plugin loglevel, log path, local httpd, mqtt). Used before starting
+	# vzLogger so a changed plugin loglevel takes effect on restart. User data and
+	# meters/channels are preserved. Does nothing if no config exists yet.
+	my $data = load_config();
+	if (!$data) { print encode_config(skeleton()); exit 0; }
+	enforce_auto($data);
+	save_config($data) or die "Could not write $config_file\n";
+	print encode_config($data);
+	exit 0;
+}
 if ($action eq "add-meter" || $action eq "update-meter" || $action eq "remove-meter") {
 	my $form = decode_input(read_input(shift(@ARGV)), "meter");
 	my $data = load_config() || skeleton();
@@ -90,7 +102,7 @@ if ($action eq "add-channel" || $action eq "remove-channel" || $action eq "add-c
 	exit 0;
 }
 
-die "Usage: $0 get|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]|add-channels [FILE]\n";
+die "Usage: $0 get|refresh|save [FILE]|set-settings [FILE]|add-meter [FILE]|update-meter [FILE]|remove-meter [FILE]|add-channel [FILE]|remove-channel [FILE]|add-channels [FILE]\n";
 
 # ---------------------------------------------------------------------------
 
