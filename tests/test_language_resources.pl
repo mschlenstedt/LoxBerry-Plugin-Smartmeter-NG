@@ -149,7 +149,7 @@ foreach my $old_path (
 }
 
 like($german->{'COMMON.TAB_IRHEADS'}, qr/Leseköpfe/, "German resources retain UTF-8 umlauts");
-like($german->{'VZLOGGER.IRHEAD_AUTO_HEADING'}, qr/Leseköpfe/, "German vzLogger text retains UTF-8 umlauts");
+like($german->{'VZLOGGER.IRHEAD_HEADING'}, qr/Leseköpfe/, "German vzLogger text retains UTF-8 umlauts");
 
 my %fallback;
 parse_language_content("[TEST]\nSHARED=Deutsch\n", \%fallback, "foreign fixture");

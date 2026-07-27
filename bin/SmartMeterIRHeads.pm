@@ -151,8 +151,10 @@ sub add_manual
 	return (0, "UI_IRHEAD_INVALID_DEVICE") if (!valid_device($device));
 	return (0, "UI_IRHEAD_INVALID_NAME") if (!valid_name($name));
 	# The device must actually be present under /dev (a device node or a symlink,
-	# e.g. one created by the udev rule); otherwise refuse to add it.
-	return (0, "UI_IRHEAD_DEVICE_MISSING") if (!-e $device && !-l $device);
+	# e.g. one created by the udev rule); otherwise refuse to add it. Tests set
+	# SMARTMETER_IRHEAD_SKIP_DEVICE_CHECK to use placeholder paths.
+	return (0, "UI_IRHEAD_DEVICE_MISSING")
+		if (!$ENV{SMARTMETER_IRHEAD_SKIP_DEVICE_CHECK} && !-e $device && !-l $device);
 	my ($data, $jsonobj) = load_data($configdir);
 	foreach my $entry (@{$data->{manual}}) {
 		return (0, "UI_IRHEAD_DUPLICATE") if ($entry->{device} eq $device || $entry->{name} eq $name);

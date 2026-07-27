@@ -11,6 +11,10 @@ use SmartMeterIRHeads qw(load_data add_manual remove_manual usb_port_short);
 
 my $dir = tempdir(CLEANUP => 1);
 
+# The bulk of these tests use placeholder /dev device paths, so skip the
+# device-existence check; a dedicated block below verifies that check on its own.
+$ENV{SMARTMETER_IRHEAD_SKIP_DEVICE_CHECK} = 1;
+
 sub read_manual
 {
 	my ($data) = load_data($dir);
@@ -84,5 +88,17 @@ close($fh);
 my $stored = JSON::PP->new->decode($raw);
 ok(ref($stored->{manual}) eq "ARRAY", "irheads.json keeps manual as an array");
 ok(exists($stored->{auto}), "irheads.json keeps the auto key");
+
+# The device-existence check (skipped above): a path that is not present under
+# /dev is rejected, while an existing device node passes.
+{
+	my $edir = tempdir(CLEANUP => 1);
+	delete local $ENV{SMARTMETER_IRHEAD_SKIP_DEVICE_CHECK};
+	my ($mok, $merr) = add_manual($edir, "/dev/smartmeter_missing_xyz", "Ghost");
+	ok(!$mok, "a non-existent device is rejected");
+	is($merr, "UI_IRHEAD_DEVICE_MISSING", "missing device reports the right key");
+	my ($rok) = add_manual($edir, "/dev/null", "Real_Dev");
+	ok($rok, "an existing device (/dev/null) passes the existence check");
+}
 
 done_testing();
