@@ -214,8 +214,10 @@ function smIconBtn(cls, kind, title, data) {
 	var danger = kind === "x" ? " lb-btn-danger" : "";
 	var attrs  = "";
 	for (var k in data) { if (data.hasOwnProperty(k)) { attrs += ' data-' + k + '="' + smEsc(data[k]) + '"'; } }
+	// Fixed height + centering so the outline (edit) and filled (delete) buttons
+	// are pixel-identical regardless of the glyph.
 	return '<button type="button" class="lb-btn lb-btn-icon lb-btn-sm' + danger + ' ' + cls +
-		'" style="padding:1px 8px; font-size:15px; line-height:1.4;"' + attrs +
+		'" style="height:28px; padding:0 9px; font-size:15px; line-height:1; justify-content:center; box-sizing:border-box;"' + attrs +
 		' title="' + smEsc(title) + '"><i class="pi ' + icon + '"></i></button>';
 }
 
@@ -235,14 +237,16 @@ function smServiceRender() {
 	smServiceIcon("unknown");
 }
 
-// Non-clickable status badge (a disabled-looking icon button) replacing the old
-// status images. kind: "ok" (green check), "error" (red cross), "unknown" (grey).
+// Non-clickable status badge (a coloured, non-interactive icon button) replacing
+// the old status images: green/red/grey background with a white/black centred
+// icon. kind: "ok" (running), "error" (stopped/failed), "unknown".
 function smServiceIcon(kind) {
-	var m = kind === "ok"    ? { i: "pi-check-circle", c: "#4a9e2f" }
-	      : kind === "error" ? { i: "pi-times-circle", c: "#c0392b" }
-	      :                     { i: "pi-question-circle", c: "#8a8a8a" };
-	$("#vz-svc-icon").html('<button type="button" tabindex="-1" class="lb-btn lb-btn-icon lb-btn-sm"' +
-		' style="pointer-events:none; padding:1px 8px; font-size:17px; line-height:1.4; color:' + m.c + '">' +
+	var m = kind === "ok"    ? { i: "pi-check", bg: "#4a9e2f", fg: "#fff" }
+	      : kind === "error" ? { i: "pi-times", bg: "#c0392b", fg: "#fff" }
+	      :                     { i: "pi-question", bg: "#c9c9c9", fg: "#000" };
+	$("#vz-svc-icon").html('<button type="button" tabindex="-1" class="lb-btn lb-btn-icon"' +
+		' style="pointer-events:none; width:30px; height:30px; padding:0; font-size:16px; line-height:1;' +
+		' justify-content:center; box-sizing:border-box; background:' + m.bg + '; border-color:' + m.bg + '; color:' + m.fg + '">' +
 		'<i class="pi ' + m.i + '"></i></button>');
 }
 
