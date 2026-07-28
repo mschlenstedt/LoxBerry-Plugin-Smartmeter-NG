@@ -1,204 +1,103 @@
-# Smartmeter-NG User Guide
+# Smartmeter-NG – User Guide
+
+> This plugin uses **vzLogger**, the open-source software of the
+> [Volkszähler project](https://www.volkszaehler.org/), under the hood. Many
+> thanks to the Volkszähler project!
 
 ## Overview
 
-Smartmeter-NG reads meter data on the LoxBerry through the external `vzlogger` package. vzLogger reads the meter and publishes values over MQTT; the plugin configures it and the LoxBerry MQTT Gateway forwards the values to the Miniserver.
-
-The former Legacy implementation with its own Perl reader has been removed. It is only maintained in the `Version1` branch.
+Smartmeter-NG reads digital electricity meters through an optical I/R reading
+head (serial, or a **Tibber Pulse** with a WLAN bridge) and publishes the values
+by MQTT. vzLogger does the actual reading; the LoxBerry MQTT Gateway forwards the
+values to the Miniserver.
 
 ## Requirements
 
-- A LoxBerry with the Smartmeter-NG plugin installed.
-- At least one supported optical I/R reading head below `/dev/serial/smartmeter/`.
-- For the standard implementation: installed `vzlogger` package and `mosquitto-clients`. Both packages are installed by LoxBerry during plugin installation.
-- For MQTT transport: the LoxBerry MQTT broker settings must be available in LoxBerry.
+- LoxBerry 4.0 or newer.
+- An optical I/R reading head (USB) **or** a Tibber Pulse with a WLAN bridge.
+- A meter that outputs SML, D0 or OMS over the optical interface (many meters
+  must be unlocked with a **PIN** first).
+- The LoxBerry MQTT broker (built into LoxBerry).
 
-## Standard Configuration With vzLogger
+vzLogger is installed automatically from the official Volkszähler repository
+during plugin installation.
 
-Open Smartmeter-NG in the LoxBerry web interface.
+## Tabs
 
-A white badge with a green check marks the active implementation, a white badge with a dark grey minus an inactive one. The state is applied on save only. After a change, the activation switch therefore shows the hint **Change not saved yet**.
+- **I/R Leseköpfe** (reading heads) – manage heads (USB or Tibber Pulse).
+- **Smartmeter** – create meters; saving runs the value discovery automatically.
+- **Kanäle** (channels) – manage the values and watch each channel live.
+- **Einstellungen** (settings) – MQTT base topic, local port, retry.
+- **Upgrade** – update vzLogger.
+- **Logfiles** – view the logs.
 
-Select **vzLogger** as the **Implementation** mode at the top of the page to enable meter reading.
+A **status bar** at the top shows the service state (🟢 running, 🟠 stopped,
+⚪ unknown/working) with **(Re)start** and **Stop** buttons.
 
-An existing valid `vzlogger.conf` is preserved when reading is disabled and enabled again, and is reused unchanged. Only when no valid generated vzLogger configuration exists is it created once from the current form values. A regular **Save and apply** still deliberately regenerates the file from the displayed vzLogger settings.
+## 1. Add a reading head
 
-Configuration and service changes are serialized. If another action is already running, the new request is rejected without changing files or services. Save/Apply generates and validates a protected staged set before replacing the active `vzlogger.conf` and channel mapping; a failed validation or promotion leaves the last valid runtime files unchanged while retaining the submitted settings for correction.
+In **I/R Leseköpfe** all heads are listed in one table; the **Type** column shows
+`usb-auto`, `seriell-man` or `tibberpulse`. A newly plugged USB head appears
+after clicking **Refresh** (🔄) next to the heading.
 
-Custom JSONC source remains unchanged. Missing channel UUIDs are recorded in an internal versioned `vzlogger_user_channel_uuids_<reader>.json` sidecar. Existing generated UUIDs are retained on first migration, and unchanged channels keep their UUID when reordered. Use an explicit UUID when identity must also survive changes to the channel object.
+Under **Add a reading head manually**, pick the **Type**:
 
+- **Serial head**: enter the device path (e.g. `/dev/ttyUSB0`) and a name, then
+  **Add**. The device must exist.
+- **Tibber Pulse**: enter the **bridge IP**, **node** (`1` for a single meter)
+  and **password** (QR code on the back of the bridge; user `admin`). The
+  bridge's local webserver must be enabled. On adding, the plugin checks
+  reachability, credentials and that SML data arrives, then serves the Pulse as a
+  virtual reading head.
 
+## 2. Create a meter
 
-### Package Installation
+In **Smartmeter**:
 
-The plugin configures the Volkszaehler/Cloudsmith apt repository and installs only the `vzlogger` package from it. The repository contains nothing but vzlogger and the two libraries libsml and libmbus, so no other Volkszaehler component is pulled in. The repository key is rewritten on every install and update so a rotated key cannot lock the plugin out.
+1. Choose the **protocol** – usually **SML** (also for the Tibber Pulse), else
+   **D0** or **OMS**. (Exec/Random are for testing only.)
+2. Select the **device** (the reading head).
+3. Adjust the baud rate if needed (SML is typically 9600).
+4. Enter a **name** and **Save**.
 
-The package ships a systemd unit and starts it from its postinst. The plugin prevents that start and disables the unit afterwards, because vzlogger is started in the foreground by the plugin watchdog (`vzlogger -f -c ... -o ...`). This is reapplied after every package update because the postinst unmasks the unit again.
+Saving runs the **value discovery** automatically; found channels appear in the
+**Kanäle** tab. Edit with the gear (⚙), delete with the red ×.
 
-The **vzLogger package** section on the plugin page shows the installed and available version and offers **Update vzLogger**.
+## 3. Channels and live values
 
-After installation vzlogger stays stopped while meter reading is not enabled. At boot the daemon script starts the watchdog, which starts vzlogger when vzLogger mode is active; every five minutes a cron job lets the watchdog verify the process and restart it after an unexpected exit. A manual stop is respected. vzLogger is started with **Save and apply** in vzLogger mode.
+The **Kanäle** tab lists all values; the **Current value** column updates every
+few seconds. Use **Auto-Discovery** to re-run the search, or add a missing value
+manually by its OBIS identifier (e.g. `1-0:1.8.0`).
 
-### Meter Setup
+## Settings
 
-A newly detected reader is marked **New / unsaved** in its panel until the next **Save and apply**. If that meter runs OBIS discovery before being applied, the plugin stores only the selected standard protocol—SML, D0, or OMS—in a meter-specific pending file. After a page reload, the UI can therefore select that protocol again and display the discovered OBIS channels. Other unsaved meter fields, particularly OMS keys, are not persisted as a draft. **Save and apply** and final meter removal both delete this pending file.
+| Setting | Meaning |
+| --- | --- |
+| MQTT base topic | Prefix of all MQTT topics (default `smartmeter-ng`) |
+| Local port | Port of vzLogger's internal webserver (used for the live values) |
+| Retry | Wait time before retrying after a read error |
 
+After saving, restart the service via the status bar.
 
-Connect an I/R reading head and select **Rescan for I/R heads**. The AJAX scan displays an overlay that cannot be closed while it is active. Device detection itself is a short directory lookup; if the request nevertheless does not respond within 15 seconds, it ends as an error. When complete, the overlay reports whether no devices, no new devices, genuinely new readers, or connected readers staged for removal only in the browser were found. Genuinely new and staged readers may occur in the same scan and are listed separately as `Name: device path`. Staged readers are shown again with their unsaved inputs intact, while new reader panels are inserted directly into the existing page. The page is not reloaded. Only a result containing neither new nor staged readers closes automatically after a visible three-second countdown. Results containing new or staged devices, no detected devices, and errors remain visible until **Close** is selected. A separate, initially collapsed section appears below the button for every detected reading head. Its heading shows the name, device path, and selected protocol. SML, D0, OMS, and **Custom (JSON)** are available. The form displays only meter parameters supported by the selected protocol. Existing SML and D0 meter presets are migrated to the new schema on the first save while retaining their known baud rates and serial values. A reading head without a selected protocol is not generated as a meter.
+## MQTT output
 
-SML, D0, and OMS show OBIS discovery and one unified channel editor for discovered and manually added channels. Discovery uses the meter's current, not-yet-applied form settings, but it can start only after vzLogger has been saved as the active implementation with **Save and apply**. New identifiers are added as active `api: null` rows; discovery does not add another row when the complete identifier already exists. Manual creation may deliberately add the same identifier more than once as separate vzLogger channels with distinct UUIDs. Discovery starts as a browser-independent background job. A progress overlay with a spinner polls status once per second, resumes after a page reload, and provides **Cancel search**. Closing, reloading, or navigating away does not terminate the job; the background process stores discovered identifiers itself. A controlled cancellation restores the regular vzLogger service. Discovery briefly stops that service and runs an independently time-bounded vzLogger test in the foreground. It checks the log once per second and finishes early as soon as every detected OBIS channel has appeared at least twice; 15 seconds remains the safety limit. Start, Stop, and Restart additionally remove matching plugin test processes. The regular service is started again afterwards. If only this restoration fails, the UI shows a warning while preserving detected identifiers. After successful discovery, the UI updates the editor in place without reloading the page. Both complete identifiers such as `1-0:1.8.0` and short D0 forms such as `1.8.0` are accepted. If the installed vzLogger does not support OMS, the UI marks the reading head and disables its OBIS discovery; validation and apply also report the missing runtime support.
-
-SML, D0, and OMS also expose the general meter parameters `enabled`, `allowskip`, and `aggtime`. `aggtime` is not SML-specific and is valid for every meter protocol; `-1` disables aggregation. Empty optional fields are omitted from `vzlogger.conf`. In particular, the SML baud-rate and parity fields are empty by default so vzLogger uses its internal defaults. Explicitly selected baud-rate or parity values are retained. The standard forms always use the detected reading head's local device path. An SML or D0 meter using a TCP `host` must therefore be configured through **Custom (JSON)**.
-
-After selecting SML or D0, **Initialize from template** becomes available. The selector shows only meter models matching the selected protocol. An SML template sets only the baud rate and serial mode. A D0 template sets the initial communication baud rate, read baud rate, serial mode, and read timeout. Name, activation, device, intervals, sequences, OBIS channels, and all other meter settings remain unchanged. The applied values initially change only the browser form and must be persisted with **Save and apply**. For meter models whose earlier implementation used additional special sequences, the UI notes that only the available basic values are applied.
-
-The central meter-template catalog holds the baud rates and protocol settings of the supported meters.
-
-**Custom (JSON)** is only a GUI mode. The editor contains exactly one complete vzLogger meter object whose actual `protocol`, for example `exec` or `s0`, must be present in that object. Root sections such as `meters`, `mqtt`, or `local` are not accepted. Input, including comments and formatting, is stored unchanged as `vzlogger_meter_<reader>.jsonc` (maximum 64 KiB). Comments are removed and valid JSON is generated for `vzlogger.conf`. No meter defaults are inserted. Only an existing `channels` array may receive a missing stable UUID and a missing `api` value of `"null"`; the JSONC source remains untouched.
-
-If a custom object is syntactically or structurally invalid, its input remains stored, the reading head shows a red warning symbol, and the concrete error appears when expanded. That meter is omitted from the newly generated `vzlogger.conf` and `vzlogger_channels.json`, while other valid meters remain. A missing absolute local `device` path also produces a visible warning but does not prevent the meter object from being used.
-
-At the end of every reader panel, **Remove meter configuration** can stage that configuration for removal. The panel disappears immediately only from the current browser view; reloading or reopening the page without **Save and apply** discards the staged removal completely. Only **Save and apply** removes the section from `smartmeter.json`, its entries from `vzlogger_channels.json`, and its meter-specific JSONC, OBIS, pending, test, log, and runtime cache files. It also discards that meter's channel state from the current browser view. Removing the last meter makes the meterless configuration a valid disabled state: vzLogger and the bridge are stopped, and the SmartMeter service override is removed. A removed reader that remains connected stays hidden during normal page loads. **Scan for I/R readers** clears that marker for currently detected devices and recreates their default settings without the previous OBIS channels; protocol, meter, and channel selection must then be configured and applied again.
-
-The plugin generates:
-
-- `vzlogger.conf` in the plugin config directory.
-- `vzlogger_channel_definitions.json` with all active and inactive channel definitions and the retained target options for each API.
-- `vzlogger_channels.json` containing only active plugin outputs and their stable channel UUID to SmartMeter output-key mapping.
-
-Use **Save and apply** for the normal workflow; it saves the current form values, generates and validates the configuration, and applies it. **Validate config** instead copies the current form values into a temporary draft and generates and validates temporary files from it. It does not change `smartmeter.json`, `vzlogger.conf`, `vzlogger_channels.json`, or custom meter files, and it does not control any services. Both actions use AJAX without reloading the page, and the overlay shows the elapsed time. Generation, validation, and application share a 60-second server-side time limit. If it is reached, the plugin stops the currently running subprocess and displays the error in the overlay. With **Save and apply**, settings or completed intermediate steps may already have been applied at that point, so review the displayed error and service status. Validation results remain in the overlay until explicitly closed. After a successful apply, the overlay closes after a visible three-second countdown; failures remain open for acknowledgement. Validation checks ranges and data types, protocol-specific SML/D0/OMS fields, aggregation dependencies, MQTT and TLS combinations, API requirements, device and certificate paths, and the UUID, identifier, and `chnN` relationship between channel definitions, generated vzLogger configuration, and bridge mapping. Active vzLogger mode requires at least one active meter; an active meter without channels remains valid for OBIS discovery and produces only a warning. Temporarily unreachable network targets are not treated as configuration errors.
-
-
-In the mobile vzLogger view, each setting name is grouped more closely with its control; help text is subdued in grey with a subtle guide line and followed by a clearer gap before the next setting. Text inputs, select controls, and switches now share the same left edge, including within desktop configuration groups.
-
-For each reader, the editor manages every channel instance with activation, OBIS identifier, origin, API, and optional SmartMeter output. Channel cards use the full width of the expanded reader panel; on phones, configuration sections, collapsibles, tables, and input controls remain within the available display width. Only the currently open settings content is highlighted with a very light pastel-yellow background and a subtle border. Short, permanently visible help text appears directly below every common and API-specific control. Changing a field preserves the expanded/collapsed state of that channel's advanced settings. The internal OBIS catalog provides an English or German short name, long explanation, expected unit, and semantic category. Unknown or manufacturer-specific codes remain fully configurable and their A–F groups are shown in a readable form. A custom semantic display name changes only presentation. Neither it nor the technical **Output key (cache/UDP)** is written to `vzlogger.conf`, because vzLogger has no general channel-name field. New output keys are prefilled from technical OBIS-catalog metadata as `<Clear_Name>_OBIS_<short-OBIS-code>`, for example `Delivery_Total_OBIS_2.8.0`; an explicit storage index remains visible as in `Delivery_Total_OBIS_2.8.0*5`. Existing saved keys are not renamed. It accepts 1 to 64 letters, digits, spaces, and `_ # | ( ) [ ] / ' % $ ! . * -`; `:` and `;` remain reserved cache/UDP delimiters. Browser and backend errors state the complete required format.
-
-Each channel row shows the currently applied vzLogger/MQTT DATA index as **Channel N**. The number is read from the generated `vzlogger.conf` and therefore matches the channel number on the rendered live-data page; unapplied or inactive definitions show **Channel –**. The advanced-settings heading additionally displays the persistent UUID in grey. After a successful **Save and apply**, the page refreshes the applied numbers without reloading.
-
-Manually created channel definitions provide **Remove OBIS channel** at the end of their advanced settings. After confirmation with channel number, OBIS identifier, and UUID, the card is hidden only from the current browser draft. Reloading before **Save and apply** discards the staged removal. Applying permanently removes the definition and regenerates `vzlogger.conf` and `vzlogger_channels.json` without that channel. Discovered channels are disabled with **Active** instead, because a later discovery run may detect them again.
-
-SML and D0 support an optional storage/billing index `*F`. Values 0 through 254 select a value that the meter actually delivers under that complete identifier; they do not request history or read a load profile. The editor represents the standard unused value 255 with **Unspecified (255)**. Existing empty, `null`, and `*255` values are normalized to this state and are not written as an unnecessary `*255` suffix. For OMS, the field is disabled and is also ignored by the backend. **Aggregation** (`none`, `avg`, `max`, `sum`) is a temporal vzLogger processing setting, not a value type. It is available only when meter-level `aggtime > 0`. New known channels then receive the catalog recommendation, while existing values are never overwritten.
-
-Each API enables only its own target parameters. `null` has none. Volkszaehler requires `middleware`; InfluxDB requires `host` and provides version/database or bucket, organization, measurement, tags, authentication, timeout, batch/buffer, UUID, and TLS settings; MySmartGrid requires `middleware`, `secretKey`, `device`, and `type`, and labels `name` explicitly as the MySmartGrid registration name. `duplicates` applies only to Volkszaehler and InfluxDB. Values retained for inactive APIs are neither validated nor generated in `vzlogger.conf`. In custom JSON mode, channels remain part of the supplied meter object, so no separate editor is displayed.
-
-### Apply Flow
-
-Use **Save and apply** to generate and validate the config. The plugin installs a systemd drop-in for the `vzlogger` service that starts vzLogger directly with `/opt/loxberry/config/plugins/smartmeter-ng/vzlogger.conf`. It then enables the service for LoxBerry reboot startup and restarts it.
-
-The generated `vzlogger.conf` orders sections and parameters according to the vzLogger documentation. Root parameters start with `retry`, `verbosity`, and `log`, followed by `local`, `mqtt`, and `meters`, each with a stable parameter order.
-
-
-
-### Expert Mode
-
-The **Expert Mode** switch at the right of the vzLogger configuration heading is saved immediately via AJAX; the page is not reloaded and expanded sections stay open. The first activation requires an existing `vzlogger.conf`. It is copied once to `vzlogger_expert.conf` only when no expert draft exists yet. Later off/on cycles neither replace an existing expert draft nor activate it automatically as the runtime configuration. While Expert Mode is active, all controls inside **vzLogger configuration** are read-only and **Save and apply** never regenerates the file from those controls. The vzLogger service activation, debug log, and log level remain editable.
-
-**Edit vzLogger configuration** opens the complete, unmasked JSON in an authenticated browser tab. **Cancel** discards the browser changes. **Save & close** always stores the expert draft and validates it. A valid draft becomes the runtime `vzlogger.conf` without restarting the service; an invalid draft remains available for correction while the last valid runtime file is preserved. If a reactivated expert draft does not yet match the active `vzlogger.conf`, Start and Restart remain blocked until it is promoted through **Save & close** or **Save and apply**. Apply is additionally blocked while the draft is invalid; Stop always remains available. Unknown vzLogger extensions produce warnings instead of being removed. Existing SmartMeter output mappings are retained by matching channel UUIDs; new UUIDs are reported but are not automatically published by the bridge.
-
-Activation, debug logging, and log level still come from the regular UI. Turning Expert Mode off changes neither `vzlogger.conf` nor `vzlogger_expert.conf`.
-
-### Service Control
-
-At the top of the vzLogger page, one service panel is shown. It controls the actual `vzlogger` service and provides status, Start/Stop/Restart, log, debug logging, log level, and live-data links. Start, Stop, and Restart each have their own tooltip; when the Start/Stop control changes with the live service state, its tooltip changes with it. The action help for these service controls, I/R-head scanning, OBIS discovery, and **Show generated config** is also displayed in the right-side help column. **Show generated config** is placed below, directly before the generated-config path, and opens `/opt/loxberry/config/plugins/smartmeter-ng/vzlogger.conf` read-only with line numbers in a new browser tab; `pass` and `keypass` are masked.
-
-Service state is refreshed every three seconds while the browser tab is visible. During Start/Stop/Restart, this polling pauses; an overlay names the running action, and its AJAX response updates the real service state directly when it finishes. The overlay closes automatically on success. If an action takes longer than 15 seconds, the overlay reports the delay. **Hide** closes only the overlay while the system action already started continues in the background; an error reopens the overlay and can be acknowledged with **Close**. Start/Stop/Restart run without a page reload. Start/Restart become available only after the corresponding activation has been saved successfully with **Save and apply** and a valid generated configuration exists; for the bridge, MQTT must additionally be saved and enabled in the generated `vzlogger.conf`. Service buttons do not perform implementation transitions themselves. vzLogger also persists debug logging and log level and updates those values in the existing `vzlogger.conf`; the bridge no longer has its own debug switch, so its verbosity follows the central log level. Other unsaved inputs remain in the browser and take effect only with **Save and apply**. Stop remains available for a running service regardless of activation switches or configuration errors. Start/Restart validate the existing configuration but never regenerate it; if it is missing or invalid, use **Save and apply** first. **Open live data (JSON)** opens vzLogger's integrated HTTP service; `/` returns all configured channels because the index is enabled, while `/<UUID>` returns one channel.
-
-Below service control, the **vzLogger configuration** settings are shown. Meters and I/R reading heads belong there as well.
-
-Meters, reading heads, protocols, and OBIS channels belong exclusively to the vzLogger configuration. vzLogger reads the devices and publishes readings through MQTT. The bridge does not access meters or serial devices directly.
-
-The collapsed **Advanced vzLogger service settings** section contains the rarely needed retry delay (`retry`). It sets the delay in seconds after a failed request and is preserved whenever `vzlogger.conf` is regenerated. Debug logging and log level (`verbosity`) remain directly available in the visible vzLogger service row.
-
-The collapsed **vzLogger HTTP service (local)** section contains all settings for vzLogger's integrated HTTP service: `enabled`, `port`, `index`, `timeout`, and `buffer`. The plugin defaults are `true`, `18080`, `true`, `30`, and `-1`. Positive buffer values specify the number of seconds, while negative values specify the number of tuples per channel. All values are preserved whenever `vzlogger.conf` is regenerated.
-
-The collapsed **MQTT** section is divided into **Connection and publishing**, **Authentication – user/password**, and **Authentication – certificate**. Broker, port, and user show the effective value: a plugin override takes precedence, followed by the LoxBerry MQTT system setting and finally `127.0.0.1:1883` for broker/port. Unchanged system values are not duplicated as plugin overrides when saved; clearing a field restores LoxBerry inheritance. Password fields remain empty and masked and only indicate whether a custom or LoxBerry password is used. The generated `vzlogger.conf` contains the effective credentials required by vzLogger but omits empty client-ID, user, password, and certificate parameters. Stored passwords are written neither to GUI HTML nor unmasked diagnostic output. Because `mosquitto_sub` in the internal bridge cannot receive a private-key password on its command line, its private key must be readable without an interactive prompt.
-
-In addition to raw JSON, a rendered page refreshes the readings every two seconds. It groups values by I/R reading head and channel and shows the channel number, custom semantic display name or, as a fallback, the English OBIS-catalog short name, OBIS identifier, UUID, and raw timestamp with readable local time. Values include the catalog unit; electrical SML counters are converted from vzLogger's raw Wh value to kWh, while the raw value remains available as a tooltip. Channel metadata comes from `vzlogger_channels.json` and is reloaded by the browser only when the generated mapping changes.
-
-Below the tables, the live page plots values received since it was opened in one shared chart. On first use it selects signed total active power, or separate import and export power as a fallback, plus the total grid-import and grid-export counters. Import is positive and export is negative; cumulative imported and exported energy remain positive quantities. Energy defaults to the change since opening and can be switched to absolute meter readings. A compact summary per reading head shows grid import, grid export, grid balance, current grid flow, and the highest observed import and export power. These figures describe only exchange with the grid, not generation, household consumption, self-consumption, or self-sufficiency.
-
-Channels with the same unit share one axis, and no more than two unit groups can be selected at once. Color, dash patterns, and semi-transparent lines distinguish curves. Pointing at a curve emphasizes it and fades the others; tooltips list every value at the selected time. Missing readings are not replaced with zero or hidden by a continuous line. A decreasing cumulative meter reading starts a new, visibly identified baseline.
-
-History and session figures exist only in the tab's memory and restart after a reload or a new opening. Channel selection, energy mode, and the background-collection option are stored locally in the browser; channel UUIDs that are no longer configured are removed from this selection on the next opening. Data requests pause by default while the tab is hidden. **Try to collect data in the background** keeps requesting without redrawing the page on a best-effort basis, but the browser or operating system may throttle or suspend it, and it consumes additional performance and battery power, especially on mobile devices. The page uses the Chart.js version shipped locally with the plugin and loads no third-party library, font, or telemetry.
-
-If the meter does not provide an instantaneous power value, `1-0:16.7.0` is unavailable. The plugin does not derive power from counter differences; do that in the Miniserver if needed.
-
-The control log is created fresh for every action and can be opened with **Show control log** below the service panel. Successful start, stop, and restart actions are confirmed briefly in green.
-
-The service name is:
-
-```text
-```
-
-## MQTT Data Flow
-
-vzLogger publishes every channel over MQTT itself. The topic of a channel is built from the reader and the output key:
-
-```text
-<base topic>/<reader>/<output key>/raw
-```
-
-For example `smartmeter/1ISK0012345/Consumption_Total_OBIS_1.8.0/raw`. In addition, vzLogger publishes `/uuid` and `/id` (the OBIS identifier) once per channel as retained messages, plus `/agg` when aggregation is enabled.
-
-The payload is the plain number by default. With **timestamp** enabled, a JSON object `{"timestamp":<ms>,"value":<number>}` is sent instead.
-
-Values are the raw meter readings. SML energy counters typically report Wh rather than kWh; the plugin does not convert them.
-
-Delivery to the Miniserver is handled by the **LoxBerry MQTT Gateway**, which subscribes to the broker. The plugin itself neither sends UDP nor serves an HTTP endpoint.
-
-## Logging and log level
-
-The plugin uses LoxBerry logging. The logs of control actions and the web interface appear in the central LoxBerry log viewer and are cleaned up automatically by `log_maint.pl`. Each service start and each action opens a new, timestamped log file.
-
-How verbose the plugin logs is controlled by the **log level** in the LoxBerry plugin management widget (menu "Plugins" → this plugin). At level **7 (Debug)** the plugin scripts additionally log their internal steps.
-
-The separate debug switch in the vzLogger service row controls the verbosity of the external `vzlogger` program itself and is independent of this.
-
-**Create debug log** creates a diagnostic log in the plugin log directory without saving the current form values. A new browser tab immediately shows progress, monitors the entire operation, and switches to the LoxBerry log viewer when the file is ready; the settings page shows no additional overlay and is not reloaded. The server stops creation after 45 seconds if it does not finish normally. Closing the new tab earlier does not necessarily stop the already-started server process, which may continue until that limit. The log includes:
-
-- package, apt source, service, and validation status
-- recent vzLogger control and web action output
-- `vzlogger --version` output, if available
-- recent `systemctl` and `journalctl` output
-- plugin config, generated `vzlogger.conf`, and `vzlogger_channels.json`
-- available LoxBerry install and plugin log tails
-- a bounded MQTT capture from `<base topic>/vzlogger/#`, if `timeout` and `mosquitto_sub` are available
-
-This debug log contains the information needed to verify the real vzLogger MQTT topic and payload format and to finish the MQTT parser adjustment.
-
-## Meter Values
-
-Typical value names are:
-
-- `Last_Update`
-- `Last_UpdateLoxEpoche`
-- `Consumption_Total_OBIS_1.8.0`
-- `Consumption_Power_OBIS_1.7.0`
-- `Delivery_Total_OBIS_2.8.0`
-- `Total_Power_OBIS_15.7.0`
-
-The available values depend on the meter type, protocol, and configured OBIS channels.
+vzLogger publishes each channel as a retained message at
+`smartmeter-ng/<meter>/<channel>/raw`. The payload carries the value and a
+timestamp, e.g. `{"timestamp": 1749123456789, "value": 16125133}` (energy
+counters in Wh). The LoxBerry MQTT Gateway forwards the topics to Loxone.
 
 ## Troubleshooting
 
-### vzLogger package installation fails
+- **No values / empty channels:** check the PIN unlock, the head's seating and
+  the selected protocol.
+- **Service does not start:** if a USB head was unplugged, the service refuses to
+  start on purpose. Reconnect the head and restart.
+- **Tibber Pulse unreachable:** check IP/network and that the bridge's local
+  webserver is enabled. On errors the plugin raises the poll interval
+  automatically (visible in the bridge's log file).
+- **Logs:** the **Logfiles** tab (vzLogger, watchdog, updates, Tibber Pulse).
 
-Check the LoxBerry installation log. The relevant steps are `PREROOT`, `Refreshing APT database`, and `Installing additional software packages`. If the Volkszaehler/Cloudsmith repository does not support the target codename or architecture, LoxBerry cannot install the `vzlogger` package.
+## Questions & bug reports
 
-### No cached values are written
-
-Check the following:
-
-- `vzlogger` is running.
-- The `vzlogger` service is running.
-- `mosquitto_sub` is installed.
-- `vzlogger_channels.json` exists and validates.
-- The debug log contains real MQTT messages under `<base topic>/vzlogger/#`.
-
-### No MQTT values arrive
-
-Use an MQTT client to check whether values appear below `<base topic>/<reader>/`. If nothing arrives, verify in the **MQTT** section that MQTT is enabled and saved, and that the vzLogger service is running. Forwarding to the Miniserver additionally requires the LoxBerry MQTT Gateway to subscribe to the broker.
-
-### Log Files
-
-The plugin writes runtime logs below the LoxBerry plugin log directory and runtime logs below `/var/run/shm/<plugin folder>/`.
+- GitHub: <https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/issues>
+- LoxBerry forum: <https://www.loxforum.com>

@@ -289,8 +289,9 @@ function smServiceRender() {
 // the old status images: green/red/grey background with a white/black centred
 // icon. kind: "ok" (running), "error" (stopped/failed), "unknown".
 function smServiceIcon(kind) {
+	// "error" matches the orange-red of the "stopped" status box (#FF6339).
 	var m = kind === "ok"    ? { i: "pi-check", bg: "#4a9e2f", fg: "#fff" }
-	      : kind === "error" ? { i: "pi-times", bg: "#c0392b", fg: "#fff" }
+	      : kind === "error" ? { i: "pi-times", bg: "#FF6339", fg: "#fff" }
 	      :                     { i: "pi-question", bg: "#c9c9c9", fg: "#000" };
 	$("#vz-svc-icon").html('<button type="button" tabindex="-1" class="lb-btn lb-btn-icon"' +
 		' style="pointer-events:none; display:inline-flex; align-items:center; justify-content:center;' +

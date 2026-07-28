@@ -2,33 +2,31 @@
 
 Smartmeter-NG is a LoxBerry plugin for reading smart meters through optical I/R reading heads and publishing their values by MQTT.
 
-The plugin drives the external `vzlogger` program: it provides a web frontend to configure meters and OBIS channels, generates and validates `vzlogger.conf`, and supervises the `vzlogger` process. vzLogger reads the meters and publishes each channel over MQTT itself; the LoxBerry MQTT Gateway forwards the values to the Miniserver.
+The plugin drives the external `vzlogger` program: it provides a web frontend to configure reading heads, meters and OBIS channels, generates and validates `vzlogger.conf`, and supervises the `vzlogger` process. vzLogger reads the meters and publishes each channel over MQTT itself; the LoxBerry MQTT Gateway forwards the values to the Miniserver.
 
-The former legacy Perl reader has been removed; it is only maintained in the `Version1` branch.
+This plugin builds on **vzLogger**, the open-source software of the [Volkszähler project](https://www.volkszaehler.org/) — many thanks to that community.
 
 ## Documentation
 
-- [English user guide](docs/User-Guide.en.md)
+- [User wiki page (DokuWiki, German)](docs/dokuwiki.txt)
 - [Deutsche Benutzerdokumentation](docs/User-Guide.de.md)
-- [Documentation index](docs/Readme.md)
+- [English user guide](docs/User-Guide.en.md)
 
 ## Main Features
 
-- Detects optical I/R reading heads below `/dev/serial/smartmeter/`.
-- Generates and validates the vzLogger configuration from a web frontend, with SML, D0, OMS, and a custom JSONC mode.
-- Discovers OBIS channels and lets you name their MQTT output per reader.
-- Installs and updates the `vzlogger` package from the Volkszaehler repository (only the `vzlogger` binary, no other Volkszaehler components).
-- Runs `vzlogger` in the foreground from a plugin watchdog and restarts it after an unexpected exit.
-- Logs through LoxBerry's central log manager with a configurable log level.
-- Offers an optional live-reading view served by vzLogger's local HTTP endpoint.
+- **Reading heads** (tab *I/R Leseköpfe*): auto-detects USB I/R heads below `/dev/serial/smartmeter/`, and lets you add serial heads or a **Tibber Pulse** (I/R head with a WLAN bridge) manually. A Tibber Pulse is validated (reachable, credentials, SML data) and then served as a virtual reading head by its own bridge process.
+- **Meters** (tab *Smartmeter*): create SML, D0 or OMS meters on a head; `exec` and `random` exist for testing. Saving runs OBIS auto-discovery automatically.
+- **Channels** (tab *Kanäle*): manage the discovered OBIS channels and see each channel's **current value live** (polled from vzLogger's local HTTP endpoint).
+- **Settings** (tab *Einstellungen*): MQTT base topic, local HTTP port and retry.
+- **Upgrade** (tab *Upgrade*): shows the installed and available `vzlogger` version and updates the package from the Volkszähler/Cloudsmith repository, into its own log file.
+- **Watchdog**: runs `vzlogger` in the foreground, refuses to start against an unplugged head's device, restarts after an unexpected exit, and manages the Tibber Pulse bridges (started before vzlogger). The plugin log level maps to vzLogger's verbosity.
 
 ## MQTT Output
 
-- vzLogger publishes each channel at `<base topic>/<reader>/<output key>/raw`.
-- It also publishes `<...>/uuid` and `<...>/id` (the OBIS identifier) as retained messages, and `<...>/agg` when aggregation is enabled.
-- The default base topic is `smartmeter`.
-- The payload is the plain meter value, or a `{"timestamp":<ms>,"value":<number>}` object when timestamps are enabled.
-- Values are the raw meter readings; SML energy counters report Wh.
+- vzLogger publishes each channel at `<base topic>/<meter>/<channel name>/raw` as a retained message.
+- The default base topic is `smartmeter-ng`.
+- With timestamps enabled (the default), the payload is a `{"timestamp":<ms>,"value":<number>}` object; SML energy counters report Wh.
+- The channel UUID and the OBIS identifier are published as additional retained topics.
 
 ## Release Notes
 

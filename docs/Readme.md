@@ -4,6 +4,7 @@ Choose your language:
 
 - [English user guide](User-Guide.en.md)
 - [Deutsche Benutzerdokumentation](User-Guide.de.md)
+- [Wiki-Seite für Endnutzer (DokuWiki, Deutsch)](dokuwiki.txt)
 
 See also:
 

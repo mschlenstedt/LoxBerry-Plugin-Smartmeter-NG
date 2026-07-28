@@ -1,0 +1,168 @@
+====== Smartmeter-NG ======
+
+++++ Version History... |
+
+[[https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/releases|Alle Releases auf GitHub]]
+
+++++
+
+----
+
+<WRAP round box>
+**Ein herzliches Dankeschön an das [[https://www.volkszaehler.org/|Volkszähler-Projekt]]!**
+
+Dieses Plugin liest die Zählerdaten nicht selbst aus, sondern nutzt im Hintergrund **vzLogger** – die freie Open-Source-Software des Volkszähler-Projekts. Ohne die großartige Arbeit dieser Community wäre das Plugin nicht möglich. Vielen Dank dafür! → [[https://www.volkszaehler.org/|www.volkszaehler.org]]
+</WRAP>
+
+----
+
+===== Funktion des Plugins =====
+
+Das Smartmeter-NG Plugin liest **digitale Stromzähler** (moderne Messeinrichtungen / Smart Meter) über einen **optischen IR-Lesekopf** aus und stellt die Werte per **MQTT** in LoxBerry bereit. Von dort lassen sie sich in Loxone einbinden.
+
+**Funktionen:**
+
+  * Auslesen von SML-, D0- und OMS-Zählern über einen seriellen IR-Lesekopf
+  * Unterstützung des **Tibber Pulse** (IR-Lesekopf mit WLAN-Bridge) als Lesekopf – ganz ohne serielles Kabel
+  * Automatische Erkennung angeschlossener USB-IR-Leseköpfe
+  * Automatische Suche der verfügbaren Messwerte (OBIS-Kennzahlen) am Zähler
+  * Anzeige des aktuellen Zählerwerts direkt im Webinterface
+  * Veröffentlichung aller Messwerte über den LoxBerry MQTT Broker
+  * Installation und Update der Ausles-Software (vzLogger) direkt aus dem Webinterface
+  * Läuft als überwachter Hintergrunddienst und startet nach einem Fehler automatisch neu
+
+===== Download =====
+
+  * [[https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/releases/latest|Neueste Version auf GitHub]]
+  * Die ZIP-URL kann direkt im LoxBerry Plugin-Manager eingegeben werden.
+
+===== Installation =====
+
+  - Im LoxBerry-Webfrontend **Plugin Manager → Plugin installieren** aufrufen.
+  - Die URL der aktuellen Release-ZIP eintragen.
+  - Installation starten und abwarten. Das Plugin installiert dabei automatisch die Ausles-Software **vzLogger** aus dem offiziellen Volkszähler-Repository.
+
+**Voraussetzungen:**
+
+  * LoxBerry 4.0 oder neuer
+  * Ein optischer IR-Lesekopf (per USB) **oder** ein Tibber Pulse mit WLAN-Bridge
+  * Ein digitaler Zähler, der SML, D0 oder OMS über die optische Schnittstelle ausgibt
+  * Der LoxBerry MQTT Broker (in LoxBerry integriert)
+
+<WRAP info>Viele moderne Stromzähler geben die Daten erst nach Eingabe einer **PIN** vollständig frei. Die PIN erhältst du bei deinem Messstellenbetreiber. Die Freischaltung erfolgt direkt am Zähler, nicht im Plugin.</WRAP>
+
+===== Die Plugin-Seite =====
+
+Die Plugin-Seite ist unter **LoxBerry → Plugins → Smartmeter-NG** erreichbar und in mehrere Reiter unterteilt:
+
+^ Reiter ^ Zweck ^
+| **I/R Leseköpfe** | Leseköpfe verwalten (USB-Kopf oder Tibber Pulse) |
+| **Smartmeter** | Zähler anlegen und die Messwerte suchen lassen |
+| **Kanäle** | Die einzelnen Messwerte (Kanäle) verwalten und live ansehen |
+| **Einstellungen** | MQTT-Grundeinstellungen |
+| **Upgrade** | vzLogger aktualisieren |
+| **Logfiles** | Protokolle einsehen |
+
+Oben auf den Reitern zeigt ein **Status-Balken** den Zustand des Ausles-Dienstes und bietet Knöpfe zum Neustarten/Stoppen:
+
+^ Farbe ^ Bedeutung ^
+| 🟢 grün (PID) | Dienst läuft |
+| 🟠 orange „Gestoppt" | Dienst ist gestoppt |
+| ⚪ grau | Zustand unbekannt / Dienst arbeitet gerade |
+
+===== Schritt 1: Lesekopf hinzufügen (Reiter „I/R Leseköpfe") =====
+
+Im Reiter **I/R Leseköpfe** werden alle Leseköpfe in einer Tabelle angezeigt. Die Spalte **Typ** zeigt, um welche Art es sich handelt:
+
+  * ''usb-auto'' – automatisch erkannter USB-IR-Lesekopf
+  * ''seriell-man'' – manuell hinzugefügter serieller Lesekopf
+  * ''tibberpulse'' – ein Tibber Pulse
+
+Steckst du einen USB-Lesekopf ein, erscheint er nach einem Klick auf den kleinen **Aktualisieren-Knopf** (🔄) neben der Überschrift automatisch in der Tabelle.
+
+Über **IR-Lesekopf manuell hinzufügen** lässt sich unten ein Lesekopf ergänzen. Im Auswahlfeld **Typ** wählst du:
+
+==== Serieller Lesekopf ====
+
+  - Typ **Seriell** wählen.
+  - Den **Gerätepfad** eintragen (z. B. ''/dev/ttyUSB0'') oder über **Zeige alle USB-Geräte** heraussuchen.
+  - Einen **Namen** vergeben (nur Buchstaben, Ziffern, ''_'' und ''-'').
+  - **Hinzufügen**. Das Gerät wird geprüft; existiert es nicht, erscheint eine Fehlermeldung.
+
+==== Tibber Pulse ====
+
+Der Tibber Pulse besteht aus einem IR-Lesekopf und einer WLAN-Bridge. Damit das Plugin die Daten lokal abgreifen kann, muss der **lokale Webserver der Bridge dauerhaft aktiviert** sein (einmalige Einrichtung, siehe Tibber-Anleitung).
+
+  - Typ **Tibber Pulse** wählen.
+  - **Bridge-IP** eintragen (die IP-Adresse der Bridge im lokalen Netz).
+  - **Node** eintragen (bei nur einem angeschlossenen Zähler ''1'').
+  - **Passwort** eintragen – es steht im **QR-Code auf der Rückseite der Bridge** (Benutzername ist immer ''admin'').
+  - **Hinzufügen**. Das Plugin prüft sofort, ob die Bridge erreichbar ist, die Zugangsdaten stimmen und SML-Daten ankommen. Erst dann wird der Tibber Pulse gespeichert und im Hintergrund als virtueller Lesekopf bereitgestellt.
+
+<WRAP info>Ein Tibber Pulse verhält sich ab jetzt wie ein normaler Lesekopf: Er taucht in der Lesekopf-Tabelle auf und kann im Reiter **Smartmeter** als Gerät für einen Zähler ausgewählt werden.</WRAP>
+
+===== Schritt 2: Zähler anlegen (Reiter „Smartmeter") =====
+
+Im Reiter **Smartmeter** legst du für jeden Lesekopf einen Zähler an:
+
+  - **Protokoll** wählen: **SML** (häufigster Fall bei modernen Messeinrichtungen und beim Tibber Pulse), **D0** oder **OMS**. (Die Einträge **Exec** und **Random** dienen nur zu Testzwecken.)
+  - Bei SML/D0/OMS das **Gerät** (den Lesekopf) aus der Liste wählen.
+  - Weitere Felder nach Bedarf anpassen (z. B. Baudrate; für SML üblicherweise 9600).
+  - Einen **Namen** vergeben.
+  - **Speichern**.
+
+Direkt nach dem Speichern startet automatisch die **Suche nach Messwerten** (OBIS-Kennzahlen). Gefundene Kanäle werden angelegt und erscheinen im Reiter **Kanäle**. Während des Speicherns und der Suche sind die Knöpfe kurz gesperrt.
+
+Bestehende Zähler lassen sich über das **Zahnrad-Symbol** (⚙) bearbeiten und über das **rote ×** löschen.
+
+===== Schritt 3: Kanäle und Live-Werte (Reiter „Kanäle") =====
+
+Der Reiter **Kanäle** listet alle Messwerte aller Zähler. In der Spalte **Aktueller Wert** wird alle paar Sekunden der aktuelle Wert direkt aus dem laufenden Ausles-Dienst angezeigt – so siehst du sofort, ob der Zähler korrekt gelesen wird.
+
+  * **Auto-Discovery**: Über das obere Collapsible lässt sich die Messwert-Suche für einen Zähler erneut starten und die gefundenen Kanäle übernehmen.
+  * **Kanal manuell hinzufügen/bearbeiten**: Falls ein Messwert nicht automatisch gefunden wurde, kann er über die OBIS-Kennung (z. B. ''1-0:1.8.0'') von Hand ergänzt werden. Bearbeiten über ⚙, Löschen über das rote ×.
+
+===== Einstellungen (Reiter „Einstellungen") =====
+
+^ Einstellung ^ Bedeutung ^
+| **MQTT Basis-Topic** | Vorderer Teil aller MQTT-Themen (Standard ''smartmeter-ng'') |
+| **Lokaler Port** | Port des internen Webservers von vzLogger (für die Live-Werte) |
+| **Wiederholung** | Wartezeit, bevor vzLogger nach einem Lesefehler erneut versucht |
+
+Nach dem **Speichern** ist in der Regel ein Neustart des Dienstes nötig (über den Status-Balken oben).
+
+===== vzLogger aktualisieren (Reiter „Upgrade") =====
+
+Der Reiter **Upgrade** zeigt die **installierte** und die **verfügbare** Version von vzLogger. Gibt es eine neuere Version, lässt sich diese über **Update vzLogger** direkt installieren. Der Ablauf wird in ein eigenes Logfile geschrieben (Reiter **Logfiles**), und vzLogger startet danach automatisch neu.
+
+===== MQTT-Ausgabe =====
+
+vzLogger veröffentlicht jeden Kanal als **retained** Nachricht unter dem Basis-Topic:
+
+  smartmeter-ng/<Zähler>/<Kanal>/raw
+
+Die Payload enthält den aktuellen Zählerwert (Energiezähler in Wh) samt Zeitstempel:
+
+<code json>
+{"timestamp": 1749123456789, "value": 16125133}
+</code>
+
+Die **Geräte-ID** bzw. eindeutige UUID und die **OBIS-Kennung** des Kanals werden zusätzlich als eigene Topics veröffentlicht.
+
+===== Einbindung in Loxone =====
+
+Die Werte gelangen über das **LoxBerry MQTT Gateway** in Loxone. Dort abonnierst du die gewünschten Topics (z. B. ''smartmeter-ng/<Zähler>/<Kanal>/raw'') und wertest den ''value'' aus.
+
+Eine ausführliche Anleitung zur MQTT-Einbindung findest du hier: [[konfiguration:widget_help:widget_mqtt]]
+
+===== Tipps & Fehlersuche =====
+
+  * **Es kommen keine Werte / Kanäle bleiben leer:** Prüfe, ob der Zähler per PIN freigeschaltet ist, ob der Lesekopf korrekt an der optischen Schnittstelle sitzt und ob das richtige Protokoll (meist SML) gewählt ist.
+  * **Der Dienst startet nicht:** Wurde ein USB-Lesekopf abgezogen, startet der Dienst bewusst **nicht** (um Fehlermeldungen zu vermeiden). Lesekopf wieder anstecken und den Dienst über den Status-Balken neu starten.
+  * **Tibber Pulse nicht erreichbar:** Prüfe IP und Netzwerk und ob der lokale Webserver der Bridge aktiviert ist. Bei Verbindungsproblemen erhöht das Plugin das Abfrageintervall automatisch (nachvollziehbar im Logfile der Bridge).
+  * **Details ansehen:** Der Reiter **Logfiles** zeigt alle Protokolle (vzLogger, Watchdog, Updates, Tibber-Pulse-Bridges).
+
+===== Fragen stellen und Fehler melden =====
+
+  * **GitHub Issues:** [[https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/issues|github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/issues]]
+  * **LoxBerry Forum:** [[https://www.loxforum.com|www.loxforum.com]]
