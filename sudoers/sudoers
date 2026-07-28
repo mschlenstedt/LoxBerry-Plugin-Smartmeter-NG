@@ -1,1 +1,2 @@
 loxberry ALL = NOPASSWD: REPLACELBPBINDIR/vzlogger_pkg.sh
+loxberry ALL = NOPASSWD: REPLACELBPBINDIR/tibberpulse_meter.sh

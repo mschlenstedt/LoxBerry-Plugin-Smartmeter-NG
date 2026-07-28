@@ -11,6 +11,7 @@
 			<thead>
 				<tr>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_NAME></th>
+					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_TYPE></th>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_DEVICE></th>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_TTY></th>
 					<th><TMPL_VAR VZLOGGER.IRHEAD_COL_SERIAL></th>
@@ -28,19 +29,51 @@
 <details class="lb-collapsible" open>
 	<summary style="font-size:1.15em; font-weight:700;"><TMPL_VAR VZLOGGER.IRHEAD_ADD_HEADING></summary>
 	<div class="lb-collapsible-content">
-		<form id="irhead-add-form" onsubmit="irheadAdd(); return false;">
+		<form id="irhead-add-form" onsubmit="irheadSave(); return false;">
+
 			<div class="lb-form-row">
+				<label class="lb-form-label" for="irhead-type"><TMPL_VAR VZLOGGER.IRHEAD_TYPE_LABEL></label>
+				<div class="lb-form-field">
+					<select class="lb-select" id="irhead-type">
+						<option value="serial"><TMPL_VAR VZLOGGER.IRHEAD_TYPE_SERIAL></option>
+						<option value="tibberpulse"><TMPL_VAR VZLOGGER.IRHEAD_TYPE_TIBBER></option>
+					</select>
+				</div>
+			</div>
+
+			<div class="lb-form-row irhead-serial">
 				<label class="lb-form-label">&nbsp;</label>
 				<div class="lb-form-field">
 					<button type="button" class="lb-btn" onclick="window.open('usb_devices.cgi', 'usbdevices', 'width=1000,height=750,scrollbars=yes,resizable=yes'); return false;"><TMPL_VAR VZLOGGER.IRHEAD_USB_BUTTON></button>
 				</div>
 			</div>
-			<div class="lb-form-row">
+			<div class="lb-form-row irhead-serial">
 				<label class="lb-form-label" for="irhead-device"><TMPL_VAR VZLOGGER.IRHEAD_DEVICE_LABEL></label>
 				<div class="lb-form-field">
 					<input class="lb-input" type="text" id="irhead-device" placeholder="/dev/ttyUSB0">
 				</div>
 			</div>
+
+			<div class="lb-form-row irhead-tibber" style="display:none;">
+				<label class="lb-form-label" for="irhead-host"><TMPL_VAR VZLOGGER.IRHEAD_TIBBER_HOST_LABEL></label>
+				<div class="lb-form-field">
+					<input class="lb-input" type="text" id="irhead-host" placeholder="192.168.1.50">
+				</div>
+			</div>
+			<div class="lb-form-row irhead-tibber" style="display:none;">
+				<label class="lb-form-label" for="irhead-node"><TMPL_VAR VZLOGGER.IRHEAD_TIBBER_NODE_LABEL></label>
+				<div class="lb-form-field">
+					<input class="lb-input" type="number" id="irhead-node" value="1" min="0">
+				</div>
+			</div>
+			<div class="lb-form-row irhead-tibber" style="display:none;">
+				<label class="lb-form-label" for="irhead-password"><TMPL_VAR VZLOGGER.IRHEAD_TIBBER_PW_LABEL></label>
+				<div class="lb-form-field">
+					<input class="lb-input" type="text" id="irhead-password" autocomplete="off">
+				</div>
+			</div>
+			<div class="lb-form-help irhead-tibber" style="display:none;"><TMPL_VAR VZLOGGER.IRHEAD_TIBBER_HELP></div>
+
 			<div class="lb-form-row">
 				<label class="lb-form-label" for="irhead-name"><TMPL_VAR VZLOGGER.IRHEAD_NAME_LABEL></label>
 				<div class="lb-form-field">
@@ -48,6 +81,7 @@
 				</div>
 			</div>
 			<div class="lb-form-help"><TMPL_VAR VZLOGGER.IRHEAD_NAME_HELP></div>
+
 			<button class="lb-btn lb-btn-primary" type="submit"><TMPL_VAR VZLOGGER.IRHEAD_ADD_BUTTON></button>
 			<div id="irhead-status" style="display:none;"></div>
 		</form>

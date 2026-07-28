@@ -130,6 +130,10 @@ sub do_start
 	# effect without a manual Save.
 	refresh_config();
 
+	# Start the Tibber Pulse bridges first so their virtual devices exist before
+	# vzlogger opens them.
+	ensure_tibberpulse();
+
 	# Do not start against unplugged reading heads: if an enabled meter's device
 	# is not present under /dev, vzlogger would start and flood the log with read
 	# errors. Refuse the start and name the missing device(s) instead.
@@ -197,6 +201,9 @@ sub do_stop
 			print $fh "1\n";
 			close($fh);
 		}
+		# A manual stop takes the Tibber Pulse bridges down too; a plain restart
+		# (do_stop(0)) leaves them running so vzlogger just reconnects.
+		stop_all_tibberpulse();
 	}
 	my $pid = read_pid();
 	if (!$pid || !process_is_vzlogger($pid)) {
@@ -248,6 +255,9 @@ sub do_check
 		LOGOK("vzlogger was stopped manually. Nothing to do.");
 		return 0;
 	}
+	# Keep the Tibber Pulse bridges alive independently of vzlogger, so a crashed
+	# bridge is restarted even while vzlogger itself is fine.
+	ensure_tibberpulse();
 	# Do not restart while OBIS discovery holds the device. A stale marker (e.g.
 	# discovery was killed) is cleaned up so the service is not stuck forever.
 	if (-e $autodiscovery_marker) {
@@ -324,6 +334,111 @@ sub missing_devices
 		push @missing, $dev if (!-e $dev && !-l $dev);
 	}
 	return @missing;
+}
+
+# -------------------------------------------------------------- Tibber Pulse
+# A Tibber Pulse is a manual head of type "tibberpulse" in irheads.json. Each one
+# is served by its own tibberpulse_meter.sh (curl -> socat PTY), started as root
+# via sudo. The bridges must run before vzlogger so its device is present.
+
+sub tibberpulse_script { return "$FindBin::Bin/tibberpulse_meter.sh"; }
+
+sub tibberpulse_heads
+{
+	my $file = "$config_dir/irheads.json";
+	return () if (!-e $file);
+	open(my $fh, "<", $file) or return ();
+	local $/;
+	my $raw = <$fh>;
+	close($fh);
+	my $data = eval { JSON::PP->new->relaxed->decode($raw) };
+	return () if (!$data || ref($data->{manual}) ne "ARRAY");
+	return grep {
+		ref($_) eq "HASH" && ($_->{type} // "") eq "tibberpulse"
+		&& ($_->{name} // "") =~ /\A[A-Za-z0-9_-]+\z/
+	} @{$data->{manual}};
+}
+
+sub tibberpulse_running
+{
+	my ($name) = @_;
+	my $pf = "$runtime_dir/tibberpulse-$name.pid";
+	return 0 if (!-e $pf);
+	open(my $fh, "<", $pf) or return 0;
+	my $pid = <$fh>;
+	close($fh);
+	$pid = defined($pid) ? $pid : "";
+	$pid =~ s/\s+//g;
+	# The bridge runs as root; use /proc (readable by anyone) instead of kill(0),
+	# which loxberry may not be allowed to send to a root process.
+	return 0 if ($pid !~ /\A\d+\z/ || !-d "/proc/$pid");
+	if (open(my $cf, "<", "/proc/$pid/cmdline")) {
+		local $/;
+		my $cmd = <$cf>;
+		close($cf);
+		$cmd = defined($cmd) ? $cmd : "";
+		$cmd =~ s/\0/ /g;
+		return 0 if ($cmd ne "" && $cmd !~ /tibberpulse_meter\.sh/);
+	}
+	return 1;
+}
+
+sub start_tibberpulse
+{
+	my ($name) = @_;
+	return if (tibberpulse_running($name));
+	my $script = tibberpulse_script();
+	return if (!-e $script);
+	LOGINF("Starting Tibber Pulse bridge '$name'.");
+	my $pid = fork();
+	return if (!defined($pid));
+	if ($pid == 0) {
+		setsid();
+		open(STDIN, "<", "/dev/null");
+		open(STDOUT, ">", "/dev/null");
+		open(STDERR, ">&", \*STDOUT);
+		exec("sudo", "-n", $script, $name);
+		exit 1;
+	}
+	# Detached bridge; do not wait for it.
+}
+
+sub stop_tibberpulse
+{
+	my ($name) = @_;
+	system("sudo", "-n", tibberpulse_script(), "stop", $name);
+}
+
+# Starts every configured Tibber Pulse bridge that is not running and waits (a
+# few seconds) for its virtual device to appear, so vzLogger finds it on start.
+sub ensure_tibberpulse
+{
+	my @heads = tibberpulse_heads();
+	return if (!@heads);
+	my @started;
+	foreach my $h (@heads) {
+		if (!tibberpulse_running($h->{name})) {
+			start_tibberpulse($h->{name});
+			push @started, $h;
+		}
+	}
+	return if (!@started);
+	for (my $i = 0; $i < 20; $i++) {
+		my $missing = 0;
+		foreach my $h (@started) {
+			my $dev = $h->{device};
+			$missing++ if (defined($dev) && $dev ne "" && !-e $dev && !-l $dev);
+		}
+		last if (!$missing);
+		select(undef, undef, undef, 0.5);
+	}
+}
+
+sub stop_all_tibberpulse
+{
+	foreach my $h (tibberpulse_heads()) {
+		stop_tibberpulse($h->{name});
+	}
 }
 
 sub vzlogger_binary

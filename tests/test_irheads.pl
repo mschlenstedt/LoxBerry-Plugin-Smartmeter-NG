@@ -7,7 +7,7 @@ use FindBin;
 use JSON::PP;
 use Test::More;
 use lib "$FindBin::Bin/../bin";
-use SmartMeterIRHeads qw(load_data add_manual remove_manual usb_port_short);
+use SmartMeterIRHeads qw(load_data add_manual add_tibberpulse remove_manual usb_port_short);
 
 my $dir = tempdir(CLEANUP => 1);
 
@@ -99,6 +99,21 @@ ok(exists($stored->{auto}), "irheads.json keeps the auto key");
 	is($merr, "UI_IRHEAD_DEVICE_MISSING", "missing device reports the right key");
 	my ($rok) = add_manual($edir, "/dev/null", "Real_Dev");
 	ok($rok, "an existing device (/dev/null) passes the existence check");
+}
+
+# Tibber Pulse: input validation happens before the network probe, and an
+# unreachable bridge is reported (no real Tibber Pulse in CI).
+{
+	my $tdir = tempdir(CLEANUP => 1);
+	my ($ok, $err) = add_tibberpulse($tdir, "bad name", "192.168.1.50", 1, "pw");
+	is($err, "UI_IRHEAD_INVALID_NAME", "tibberpulse rejects an invalid name");
+	($ok, $err) = add_tibberpulse($tdir, "Pulse", "bad host", 1, "pw");
+	is($err, "UI_TIBBER_INVALID_HOST", "tibberpulse rejects an invalid host");
+	($ok, $err) = add_tibberpulse($tdir, "Pulse", "192.168.1.50", "x", "pw");
+	is($err, "UI_TIBBER_INVALID_NODE", "tibberpulse rejects a non-numeric node");
+	($ok, $err) = add_tibberpulse($tdir, "Pulse", "127.0.0.1:1", 1, "pw");
+	ok(!$ok, "tibberpulse add fails for an unreachable bridge");
+	is($err, "UI_TIBBER_UNREACHABLE", "unreachable bridge reports the right key");
 }
 
 done_testing();

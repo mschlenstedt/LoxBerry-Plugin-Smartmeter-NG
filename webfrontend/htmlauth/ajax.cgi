@@ -14,7 +14,7 @@ use LoxBerry::System;
 # plugin's Perl modules live. It is populated at compile time by the import
 # above, so the following "use lib" picks it up.
 use lib $lbpbindir;
-use SmartMeterIRHeads qw(sync_and_load add_manual remove_manual);
+use SmartMeterIRHeads qw(sync_and_load load_data add_manual add_tibberpulse remove_manual);
 
 my $cgi = CGI->new;
 my $q   = $cgi->Vars;
@@ -30,7 +30,25 @@ sub is_post { return (($ENV{REQUEST_METHOD} || "") eq "POST"); }
 sub head_lists
 {
 	my $data = sync_and_load($configdir);
-	return (auto => $data->{auto}, manual => $data->{manual});
+	# Never expose the Tibber Pulse password to the browser.
+	my @manual = map { my %e = %$_; delete $e{password}; \%e } @{$data->{manual}};
+	return (auto => $data->{auto}, manual => \@manual);
+}
+
+# Launches / stops a Tibber Pulse bridge as root (whitelisted in sudoers). The
+# start is detached (setsid) because the bridge runs a foreground poll loop.
+sub tibberpulse_start
+{
+	my ($name) = @_;
+	return if (($name // "") !~ /\A[A-Za-z0-9_-]+\z/);
+	system("setsid sudo -n $lbpbindir/tibberpulse_meter.sh $name </dev/null >/dev/null 2>&1 &");
+}
+
+sub tibberpulse_stop
+{
+	my ($name) = @_;
+	return if (($name // "") !~ /\A[A-Za-z0-9_-]+\z/);
+	system("sudo", "-n", "$lbpbindir/tibberpulse_meter.sh", "stop", $name);
 }
 
 # Probes the running vzlogger PID via the watchdog's lightweight, unlogged
@@ -178,12 +196,27 @@ elsif ($action eq "irheads-add") {
 		$response = { ok => $ok ? JSON::PP::true : JSON::PP::false, error_key => $err, head_lists() };
 	}
 }
+elsif ($action eq "irheads-add-tibberpulse") {
+	if (!is_post()) {
+		$response = { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
+	}
+	else {
+		# add_tibberpulse probes the bridge (reachable + credentials + SML) first.
+		my ($ok, $err) = add_tibberpulse($configdir, $q->{name}, $q->{host}, $q->{node}, $q->{password});
+		tibberpulse_start($q->{name}) if ($ok);
+		$response = { ok => $ok ? JSON::PP::true : JSON::PP::false, error_key => $err, head_lists() };
+	}
+}
 elsif ($action eq "irheads-remove") {
 	if (!is_post()) {
 		$response = { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 	}
 	else {
+		# If the removed head is a Tibber Pulse, take its bridge down too.
+		my ($data) = load_data($configdir);
+		my ($entry) = grep { ref($_) eq "HASH" && ($_->{device} // "") eq ($q->{device} // "") } @{$data->{manual}};
 		my ($ok, $err) = remove_manual($configdir, $q->{device});
+		tibberpulse_stop($entry->{name}) if ($ok && $entry && ($entry->{type} // "") eq "tibberpulse");
 		$response = { ok => $ok ? JSON::PP::true : JSON::PP::false, error_key => $err, head_lists() };
 	}
 }

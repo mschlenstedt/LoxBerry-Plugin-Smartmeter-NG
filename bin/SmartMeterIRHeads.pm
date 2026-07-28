@@ -19,7 +19,7 @@ use LoxBerry::JSON;
 # symlink directory on every page load) and manually added ones (edited by the
 # user). Both feed the device dropdown of the vzLogger configuration.
 
-our @EXPORT_OK = qw(sync_and_load load_data save_data add_manual remove_manual usb_port_short);
+our @EXPORT_OK = qw(sync_and_load load_data save_data add_manual add_tibberpulse tibberpulse_probe remove_manual usb_port_short);
 
 my $AUTO_DIR = "/dev/serial/smartmeter";
 
@@ -125,7 +125,11 @@ sub sync_and_load
 {
 	my ($configdir) = @_;
 	my ($data, $jsonobj) = load_data($configdir);
-	$data->{auto} = [ scan_auto() ];
+	# Drop auto entries that are actually managed manually (e.g. a Tibber Pulse
+	# whose virtual device lives under the same /dev/serial/smartmeter directory),
+	# so they are not listed twice.
+	my %manual_dev = map { (ref($_) eq "HASH" && defined($_->{device})) ? ($_->{device} => 1) : () } @{$data->{manual}};
+	$data->{auto} = [ grep { !$manual_dev{$_->{device}} } scan_auto() ];
 	save_data($jsonobj);
 	return $data;
 }
@@ -159,7 +163,84 @@ sub add_manual
 	foreach my $entry (@{$data->{manual}}) {
 		return (0, "UI_IRHEAD_DUPLICATE") if ($entry->{device} eq $device || $entry->{name} eq $name);
 	}
-	push @{$data->{manual}}, { device => $device, name => $name };
+	push @{$data->{manual}}, { device => $device, name => $name, type => "serial" };
+	save_data($jsonobj);
+	return (1, "");
+}
+
+# Validates a host: an IPv4 address or hostname, with an optional :port.
+sub valid_host
+{
+	my ($host) = @_;
+	return 0 if (!defined($host) || $host eq "" || length($host) > 258);
+	if ($host =~ /\A(.+):(\d{1,5})\z/) {
+		my $port = $2;
+		return 0 if ($port < 1 || $port > 65535);
+		$host = $1;
+	}
+	return ($host =~ /\A[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\z/) ? 1 : 0;
+}
+
+# Probes a Tibber Pulse bridge: reachable, credentials valid and a framed SML
+# telegram is returned. Returns "" on success or a localizable error key. The
+# password is passed via a 0600 curl config file, not the command line.
+sub tibberpulse_probe
+{
+	my ($host, $node, $password) = @_;
+	return "UI_TIBBER_INVALID_HOST" if (!valid_host($host));
+	$node = "1" if (!defined($node) || $node eq "");
+	return "UI_TIBBER_INVALID_NODE" if ($node !~ /\A\d+\z/);
+
+	require File::Temp;
+	my ($cfgfh, $cfg)   = File::Temp::tempfile("tibberprobe-XXXXXX", TMPDIR => 1, UNLINK => 1);
+	my ($bodyfh, $body) = File::Temp::tempfile("tibberbody-XXXXXX",  TMPDIR => 1, UNLINK => 1);
+	close($bodyfh);
+	chmod(0600, $cfg);
+	(my $pw = defined($password) ? $password : "") =~ s/([\\"])/\\$1/g;
+	print $cfgfh "url = \"http://$host/data.json?node_id=$node\"\n";
+	print $cfgfh "user = \"admin:$pw\"\n";
+	close($cfgfh);
+
+	my $code = `curl -sS --max-time 6 -o \Q$body\E -w '%{http_code}' -K \Q$cfg\E 2>/dev/null`;
+	my $rc = $?;
+	unlink($cfg);
+	if ($rc != 0 || !defined($code) || $code !~ /\A\d{3}\z/ || $code eq "000") {
+		unlink($body); return "UI_TIBBER_UNREACHABLE";
+	}
+	if ($code == 401) { unlink($body); return "UI_TIBBER_AUTH_FAILED"; }
+	if ($code != 200) { unlink($body); return "UI_TIBBER_HTTP_ERROR"; }
+
+	my $hdr = "";
+	if (open(my $bf, "<:raw", $body)) { read($bf, $hdr, 8); close($bf); }
+	unlink($body);
+	return "UI_TIBBER_NO_SML" if (unpack("H*", $hdr) !~ /\A1b1b1b1b01010101/i);
+	return "";
+}
+
+# Adds a Tibber Pulse as a manual head after a successful probe. Stores host,
+# node and password; the virtual device is created later by tibberpulse_meter.sh.
+sub add_tibberpulse
+{
+	my ($configdir, $name, $host, $node, $password) = @_;
+	return (0, "UI_IRHEAD_INVALID_NAME") if (!valid_name($name));
+	return (0, "UI_TIBBER_INVALID_HOST") if (!valid_host($host));
+	$node = "1" if (!defined($node) || $node eq "");
+	return (0, "UI_TIBBER_INVALID_NODE") if ($node !~ /\A\d+\z/);
+	my $err = tibberpulse_probe($host, $node, $password);
+	return (0, $err) if ($err ne "");
+	my ($data, $jsonobj) = load_data($configdir);
+	my $device = "$AUTO_DIR/$name";
+	foreach my $entry (@{$data->{manual}}) {
+		return (0, "UI_IRHEAD_DUPLICATE") if (($entry->{name} // "") eq $name || ($entry->{device} // "") eq $device);
+	}
+	push @{$data->{manual}}, {
+		name     => $name,
+		device   => $device,
+		type     => "tibberpulse",
+		host     => $host,
+		node     => "$node",
+		password => (defined($password) ? $password : ""),
+	};
 	save_data($jsonobj);
 	return (1, "");
 }

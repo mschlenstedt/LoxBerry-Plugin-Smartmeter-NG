@@ -33,6 +33,8 @@ $(function() {
 		$("#irhead-name").on("input", function() {
 			this.value = this.value.replace(/[^A-Za-z0-9_-]/g, "");
 		});
+		$("#irhead-type").on("change", irheadTypeToggle);
+		irheadTypeToggle();
 		$(document).on("click", ".irhead-remove", function() {
 			irheadRemove($(this).data("device"));
 		});
@@ -93,6 +95,12 @@ var irheadMsg = {
 	UI_IRHEAD_DUPLICATE:      "<TMPL_VAR VZLOGGER.UI_IRHEAD_DUPLICATE>",
 	UI_IRHEAD_NOT_FOUND:      "<TMPL_VAR VZLOGGER.UI_IRHEAD_NOT_FOUND>",
 	UI_IRHEAD_DEVICE_MISSING: "<TMPL_VAR VZLOGGER.UI_IRHEAD_DEVICE_MISSING>",
+	UI_TIBBER_INVALID_HOST:   "<TMPL_VAR VZLOGGER.UI_TIBBER_INVALID_HOST>",
+	UI_TIBBER_INVALID_NODE:   "<TMPL_VAR VZLOGGER.UI_TIBBER_INVALID_NODE>",
+	UI_TIBBER_UNREACHABLE:    "<TMPL_VAR VZLOGGER.UI_TIBBER_UNREACHABLE>",
+	UI_TIBBER_AUTH_FAILED:    "<TMPL_VAR VZLOGGER.UI_TIBBER_AUTH_FAILED>",
+	UI_TIBBER_HTTP_ERROR:     "<TMPL_VAR VZLOGGER.UI_TIBBER_HTTP_ERROR>",
+	UI_TIBBER_NO_SML:         "<TMPL_VAR VZLOGGER.UI_TIBBER_NO_SML>",
 	UI_POST_REQUIRED:         "<TMPL_VAR VZLOGGER.UI_POST_REQUIRED>",
 	UI_UNKNOWN_ACTION:        "<TMPL_VAR VZLOGGER.UI_UNKNOWN_ACTION>",
 	UI_AJAX_FAILED:           "<TMPL_VAR VZLOGGER.UI_AJAX_FAILED>"
@@ -101,6 +109,7 @@ var irheadNone   = "<TMPL_VAR VZLOGGER.IRHEAD_NONE>";
 var irheadRemove_title = "<TMPL_VAR VZLOGGER.IRHEAD_REMOVE>";
 var irheadAdding = "<TMPL_VAR VZLOGGER.IRHEAD_ADDING>";
 var irheadAdded  = "<TMPL_VAR VZLOGGER.IRHEAD_ADDED>";
+var irheadTibberProbing = "<TMPL_VAR VZLOGGER.IRHEAD_TIBBER_PROBING>";
 
 function irheadEsc(value) {
 	return $("<div>").text(value == null ? "" : value).html();
@@ -125,20 +134,59 @@ function irheadApply(data) {
 	(data.auto   || []).forEach(function(r) { rows.push($.extend({ removable: false }, r)); });
 	(data.manual || []).forEach(function(r) { rows.push($.extend({ removable: true  }, r)); });
 	if (!rows.length) {
-		body.append('<tr><td colspan="7">' + irheadEsc(irheadNone) + '</td></tr>');
+		body.append('<tr><td colspan="8">' + irheadEsc(irheadNone) + '</td></tr>');
 		return;
 	}
 	rows.sort(function(a, b) { return String(a.device || "").localeCompare(String(b.device || "")); });
 	var mono = " style=\"font-family:var(--lb-font-mono)\"";
 	rows.forEach(function(r) {
 		var hw = [r.vendor, r.model].filter(Boolean).join(" ");
+		var typ = !r.removable ? "usb-auto" : (r.type === "tibberpulse" ? "tibberpulse" : "seriell-man");
 		var action = r.removable ? smIconBtn("irhead-remove", "x", irheadRemove_title, { device: r.device }) : "";
 		body.append(
-			"<tr><td>" + irheadEsc(r.name) + "</td><td" + mono + ">" + irheadEsc(r.device) +
+			"<tr><td>" + irheadEsc(r.name) + "</td><td>" + irheadEsc(typ) +
+			"</td><td" + mono + ">" + irheadEsc(r.device) +
 			"</td><td" + mono + ">" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
 			"</td><td>" + irheadEsc(r.usbport) + "</td><td>" + irheadEsc(hw) + "</td><td>" + action + "</td></tr>"
 		);
 	});
+}
+
+// Show serial or Tibber Pulse fields based on the type dropdown.
+function irheadTypeToggle() {
+	var t = $("#irhead-type").val();
+	$(".irhead-serial").toggle(t === "serial");
+	$(".irhead-tibber").toggle(t === "tibberpulse");
+}
+
+// Add-form submit dispatcher: serial head or Tibber Pulse.
+function irheadSave() {
+	if ($("#irhead-type").val() === "tibberpulse") { irheadAddTibber(); }
+	else { irheadAdd(); }
+}
+
+// Adds a Tibber Pulse; the server probes the bridge (reachable + credentials +
+// SML) before storing it and starting its bridge process.
+function irheadAddTibber() {
+	irheadStatus(irheadTibberProbing, "info");
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: {
+			action:   "irheads-add-tibberpulse",
+			name:     $("#irhead-name").val(),
+			host:     $("#irhead-host").val(),
+			node:     $("#irhead-node").val(),
+			password: $("#irhead-password").val()
+		} })
+		.done(function(data) {
+			if (data && data.ok) {
+				irheadApply(data);
+				$("#irhead-host, #irhead-password, #irhead-name").val("");
+				$("#irhead-node").val("1");
+				irheadStatus(irheadAdded, "ok");
+			} else {
+				irheadStatus((data && irheadMsg[data.error_key]) || irheadMsg.UI_AJAX_FAILED, "error");
+			}
+		})
+		.fail(function() { irheadStatus(irheadMsg.UI_AJAX_FAILED, "error"); });
 }
 
 function irheadLoad() {
