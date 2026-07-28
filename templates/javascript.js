@@ -276,7 +276,7 @@ function smServiceStatus() {
 function smServiceRun(action) {
 	clearInterval(smInterval);
 	smServiceBox("color:blue", smEsc(smSvc.WORKING));
-	smServiceIcon("unknown_20.png");
+	smServiceIcon("unknown");
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action } })
 		.done(smServiceShow)
 		.fail(smServiceFailed)
