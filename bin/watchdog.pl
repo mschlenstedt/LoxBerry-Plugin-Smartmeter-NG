@@ -130,6 +130,17 @@ sub do_start
 	# effect without a manual Save.
 	refresh_config();
 
+	# Do not start against unplugged reading heads: if an enabled meter's device
+	# is not present under /dev, vzlogger would start and flood the log with read
+	# errors. Refuse the start and name the missing device(s) instead.
+	my @missing = missing_devices();
+	if (@missing) {
+		my $list = join(", ", @missing);
+		LOGERR("Not starting vzlogger: device(s) not present under /dev: $list. Reconnect the reading head, then start again.");
+		print "vzLogger not started - device(s) missing: $list\n";
+		return 1;
+	}
+
 	my $logfile = vzlogger_logfile();
 	LOGINF("Starting $binary with $vzlogger_config");
 	my $pid = fork();
@@ -286,6 +297,33 @@ sub vzlogger_mode_enabled
 		return 1 if (JSON::PP::is_bool($enabled) ? $enabled : (defined($enabled) && !ref($enabled) && $enabled && $enabled ne "0"));
 	}
 	return 0;
+}
+
+# Returns the device paths of enabled serial meters (sml/d0/oms) whose device is
+# not physically present under /dev (neither a node nor a symlink). Used to avoid
+# starting vzlogger against an unplugged reading head, which floods the log.
+sub missing_devices
+{
+	return () if (!-e $vzlogger_config);
+	open(my $fh, "<", $vzlogger_config) or return ();
+	local $/;
+	my $raw = <$fh>;
+	close($fh);
+	my $data = eval { JSON::PP->new->relaxed->decode($raw) };
+	return () if (!$data || ref($data->{meters}) ne "ARRAY");
+	my @missing;
+	foreach my $meter (@{$data->{meters}}) {
+		next if (ref($meter) ne "HASH");
+		my $enabled = $meter->{enabled};
+		my $is_enabled = JSON::PP::is_bool($enabled) ? $enabled
+			: (defined($enabled) && !ref($enabled) && $enabled && $enabled ne "0");
+		next if (!$is_enabled);
+		next if (($meter->{protocol} // "") !~ /\A(?:sml|d0|oms)\z/);
+		my $dev = $meter->{device};
+		next if (!defined($dev) || $dev eq "");
+		push @missing, $dev if (!-e $dev && !-l $dev);
+	}
+	return @missing;
 }
 
 sub vzlogger_binary

@@ -132,10 +132,7 @@ function irheadApply(data) {
 	var mono = " style=\"font-family:var(--lb-font-mono)\"";
 	rows.forEach(function(r) {
 		var hw = [r.vendor, r.model].filter(Boolean).join(" ");
-		var action = r.removable
-			? '<button type="button" class="lb-btn lb-btn-icon lb-btn-danger lb-btn-sm irhead-remove" style="padding:1px 8px; font-size:15px; line-height:1.4;" data-device="' +
-				irheadEsc(r.device) + '" title="' + irheadEsc(irheadRemove_title) + '">&times;</button>'
-			: "";
+		var action = r.removable ? smIconBtn("irhead-remove", "x", irheadRemove_title, { device: r.device }) : "";
 		body.append(
 			"<tr><td>" + irheadEsc(r.name) + "</td><td" + mono + ">" + irheadEsc(r.device) +
 			"</td><td" + mono + ">" + irheadEsc(r.target) + "</td><td>" + irheadEsc(r.serial) +
@@ -210,16 +207,16 @@ function smStatus(sel, text, kind) {
 	$(sel).text(text).css({ display: "block", "text-align": "center", "margin-top": "0.5em", color: color });
 }
 
-// Small square icon button, same size as the I/R reading head buttons.
-// kind "gear" -> edit (⚙), "x" -> delete (×, red). data = extra data-* attributes.
+// Small icon button used across all tabs; uses the PrimeIcons font (.pi) so every
+// button has the exact same size. kind: "gear" (edit), "x" (delete, red), "refresh".
 function smIconBtn(cls, kind, title, data) {
-	var glyph  = kind === "gear" ? "⚙" : "×";
+	var icon   = kind === "gear" ? "pi-cog" : (kind === "refresh" ? "pi-refresh" : "pi-times");
 	var danger = kind === "x" ? " lb-btn-danger" : "";
 	var attrs  = "";
 	for (var k in data) { if (data.hasOwnProperty(k)) { attrs += ' data-' + k + '="' + smEsc(data[k]) + '"'; } }
 	return '<button type="button" class="lb-btn lb-btn-icon lb-btn-sm' + danger + ' ' + cls +
 		'" style="padding:1px 8px; font-size:15px; line-height:1.4;"' + attrs +
-		' title="' + smEsc(title) + '">' + glyph + '</button>';
+		' title="' + smEsc(title) + '"><i class="pi ' + icon + '"></i></button>';
 }
 
 function smServiceRender() {
@@ -227,7 +224,7 @@ function smServiceRender() {
 		'<div class="vzsvc">' +
 			'<div class="vzsvc-info">' +
 				'<div class="vzsvc-label">' + smEsc(smSvc.LABEL) + '</div>' +
-				'<div id="vz-svc-icon"><img src="images/unknown_20.png" alt=""></div>' +
+				'<div id="vz-svc-icon"></div>' +
 				'<div class="vzsvc-box" id="vz-svc-box">' + smEsc(smSvc.UNKNOWN) + '</div>' +
 			'</div>' +
 			'<div class="vzsvc-btns">' +
@@ -235,10 +232,18 @@ function smServiceRender() {
 				'<a href="#" class="vzsvc-btn" onclick="smServiceStop(); return false;"><span class="vzsvc-ico"><i class="pi pi-times"></i></span>' + smEsc(smSvc.STOP) + '</a>' +
 			'</div>' +
 		'</div><hr><br>';
+	smServiceIcon("unknown");
 }
 
-function smServiceIcon(name) {
-	$("#vz-svc-icon").html('<img src="images/' + name + '" alt="">');
+// Non-clickable status badge (a disabled-looking icon button) replacing the old
+// status images. kind: "ok" (green check), "error" (red cross), "unknown" (grey).
+function smServiceIcon(kind) {
+	var m = kind === "ok"    ? { i: "pi-check-circle", c: "#4a9e2f" }
+	      : kind === "error" ? { i: "pi-times-circle", c: "#c0392b" }
+	      :                     { i: "pi-question-circle", c: "#8a8a8a" };
+	$("#vz-svc-icon").html('<button type="button" tabindex="-1" class="lb-btn lb-btn-icon lb-btn-sm"' +
+		' style="pointer-events:none; padding:1px 8px; font-size:17px; line-height:1.4; color:' + m.c + '">' +
+		'<i class="pi ' + m.i + '"></i></button>');
 }
 
 function smServiceBox(style, html) {
@@ -247,16 +252,16 @@ function smServiceBox(style, html) {
 
 function smServiceFailed() {
 	smServiceBox("background:#dfdfdf; color:red", smEsc(smSvc.FAILED));
-	smServiceIcon("unknown_20.png");
+	smServiceIcon("unknown");
 }
 
 function smServiceShow(data) {
 	if (data && data.ok && data.running && data.pid) {
 		smServiceBox("background:#6dac20; color:black", '<span class="vzsvc-small">PID: ' + smEsc(data.pid) + '</span>');
-		smServiceIcon("check_20.png");
+		smServiceIcon("ok");
 	} else if (data && data.ok) {
 		smServiceBox("background:#FF6339; color:black", smEsc(smSvc.STOPPED));
-		smServiceIcon("error_20.png");
+		smServiceIcon("error");
 	} else {
 		smServiceFailed();
 	}
