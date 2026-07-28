@@ -217,7 +217,7 @@ function smIconBtn(cls, kind, title, data) {
 	// Fixed height + centering so the outline (edit) and filled (delete) buttons
 	// are pixel-identical regardless of the glyph.
 	return '<button type="button" class="lb-btn lb-btn-icon lb-btn-sm' + danger + ' ' + cls +
-		'" style="height:28px; padding:0 9px; font-size:15px; line-height:1; justify-content:center; box-sizing:border-box;"' + attrs +
+		'" style="display:inline-flex; align-items:center; justify-content:center; height:28px; padding:0 9px; font-size:15px; line-height:1; box-sizing:border-box;"' + attrs +
 		' title="' + smEsc(title) + '"><i class="pi ' + icon + '"></i></button>';
 }
 
@@ -245,8 +245,9 @@ function smServiceIcon(kind) {
 	      : kind === "error" ? { i: "pi-times", bg: "#c0392b", fg: "#fff" }
 	      :                     { i: "pi-question", bg: "#c9c9c9", fg: "#000" };
 	$("#vz-svc-icon").html('<button type="button" tabindex="-1" class="lb-btn lb-btn-icon"' +
-		' style="pointer-events:none; width:30px; height:30px; padding:0; font-size:16px; line-height:1;' +
-		' justify-content:center; box-sizing:border-box; background:' + m.bg + '; border-color:' + m.bg + '; color:' + m.fg + '">' +
+		' style="pointer-events:none; display:inline-flex; align-items:center; justify-content:center;' +
+		' width:30px; height:30px; padding:0; margin:0; font-size:16px; line-height:1; box-sizing:border-box;' +
+		' background:' + m.bg + '; border-color:' + m.bg + '; color:' + m.fg + '">' +
 		'<i class="pi ' + m.i + '"></i></button>');
 }
 
