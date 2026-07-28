@@ -23,6 +23,13 @@
 set -u
 
 ACTION="${1:-}"
+
+# Derive the plugin name and LoxBerry home from the script's own path, so this
+# works even under sudo (which strips the LoxBerry environment).
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+PLUGINNAME="$(basename "$SCRIPT_DIR")"
+LBHOMEDIR="${SCRIPT_DIR%/bin/plugins/*}"
+
 KEYRING="/usr/share/keyrings/volkszaehler-volkszaehler-org-project-archive-keyring.gpg"
 SOURCE_LIST="/etc/apt/sources.list.d/volkszaehler-volkszaehler-org-project.list"
 REPO_BASE="https://dl.cloudsmith.io/public/volkszaehler/volkszaehler-org-project"
@@ -162,6 +169,50 @@ install_package()
 	fi
 }
 
+# Web-triggered upgrade: run the install with a dedicated, registered LoxBerry
+# logfile (via the bash log library) so the run shows up in the plugin's log
+# manager. install_package runs in a subshell so its "exit" on failure does not
+# skip LOGEND, and its full output (apt included) lands in the logfile.
+run_logged_upgrade()
+{
+	require_root
+	loglib="$LBHOMEDIR/libs/bashlib/loxberry_log.sh"
+	if [ ! -r "$loglib" ]; then
+		install_package
+		return $?
+	fi
+	# The LoxBerry bash log library is not written for "set -u" (it reads unset
+	# variables like FILENAME), so disable nounset for the logged run.
+	set +u
+	# shellcheck disable=SC1090
+	. "$loglib"
+	PACKAGE="$PLUGINNAME"
+	NAME="upgrade"
+	LOGDIR="$LBHOMEDIR/log/plugins/$PLUGINNAME"
+	LOGLEVEL=7
+	mkdir -p "$LOGDIR"
+	LOGSTART "vzlogger upgrade started"
+	( install_package ) >>"$FILENAME" 2>&1
+	rc=$?
+	if [ "$rc" -eq 0 ]; then
+		LOGOK "vzlogger upgrade finished."
+		# Restart vzlogger so the freshly installed binary is used - unless the
+		# service was manually stopped via the web interface.
+		if [ -e "$LBHOMEDIR/config/plugins/$PLUGINNAME/vzlogger_stopped.cfg" ]; then
+			LOGINF "vzlogger was manually stopped - not restarting."
+		else
+			LOGINF "Restarting vzlogger via the watchdog to activate the new version..."
+			su loxberry -c "$SCRIPT_DIR/watchdog.pl --action=restart" >>"$FILENAME" 2>&1 || true
+			LOGOK "vzlogger restart triggered."
+		fi
+	else
+		LOGERR "vzlogger upgrade failed (exit code $rc). See the output above."
+	fi
+	LOGEND "vzlogger upgrade ended"
+	chown loxberry:loxberry "$FILENAME" 2>/dev/null || true
+	return "$rc"
+}
+
 case "$ACTION" in
 	current)
 		installed_version
@@ -173,8 +224,12 @@ case "$ACTION" in
 		configure_repository
 		echo "<OK> Repository configured"
 		;;
-	install|upgrade)
+	install)
 		install_package
+		;;
+	upgrade)
+		run_logged_upgrade
+		exit $?
 		;;
 	*)
 		echo "Usage: $0 current|available|repo|install|upgrade"

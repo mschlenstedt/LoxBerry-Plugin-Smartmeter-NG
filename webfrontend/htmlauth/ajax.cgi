@@ -90,6 +90,37 @@ sub vz_live
 	return { ok => JSON::PP::true, values => \%values };
 }
 
+# Installed and available vzlogger version plus whether an update exists. The
+# package helper reports the versions (dpkg / apt-cache); dpkg --compare-versions
+# decides if the available one is newer.
+sub vz_upgrade_versions
+{
+	my $pkg = "$lbpbindir/vzlogger_pkg.sh";
+	my (undef, $cur)   = LoxBerry::System::execute(command => "$pkg current 2>/dev/null");
+	my (undef, $avail) = LoxBerry::System::execute(command => "$pkg available 2>/dev/null");
+	$cur   = defined($cur)   ? $cur   : ""; $cur   =~ s/\A\s+|\s+\z//g;
+	$avail = defined($avail) ? $avail : ""; $avail =~ s/\A\s+|\s+\z//g;
+	my $update = 0;
+	if ($cur ne "" && $avail ne "") {
+		$update = 1 if (system("dpkg", "--compare-versions", $avail, "gt", $cur) == 0);
+	}
+	return {
+		ok               => JSON::PP::true,
+		current          => $cur,
+		available        => $avail,
+		update_available => $update ? JSON::PP::true : JSON::PP::false,
+	};
+}
+
+# Runs the vzlogger package upgrade as root (whitelisted in sudoers). The helper
+# refreshes the Cloudsmith repository key and writes its own LoxBerry logfile.
+sub vz_upgrade_run
+{
+	my $pkg = "$lbpbindir/vzlogger_pkg.sh";
+	my ($rc) = LoxBerry::System::execute(command => "sudo $pkg upgrade </dev/null 2>&1");
+	return { ok => (defined($rc) && $rc == 0) ? JSON::PP::true : JSON::PP::false };
+}
+
 # The vzLogger local httpd port, or undef when the local interface is disabled.
 sub vz_local_port
 {
@@ -191,6 +222,12 @@ elsif ($action eq "vzconf-remove-channel") {
 }
 elsif ($action eq "vz-live") {
 	$response = vz_live();
+}
+elsif ($action eq "upgrade-versions") {
+	$response = vz_upgrade_versions();
+}
+elsif ($action eq "upgrade-run") {
+	$response = is_post() ? vz_upgrade_run() : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };
 }
 elsif ($action eq "vzconf-add-channels") {
 	$response = is_post() ? vz_conf_write("add-channels", $q->{channels}) : { ok => JSON::PP::false, error_key => "UI_POST_REQUIRED" };

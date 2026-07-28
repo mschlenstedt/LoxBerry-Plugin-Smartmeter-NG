@@ -78,6 +78,11 @@ $(function() {
 		channelLivePoll();
 		window.setInterval(channelLivePoll, 5000);
 	}
+
+	// Upgrade tab: load the vzLogger versions and drive the update button.
+	if (document.getElementById("upg-btn")) {
+		upgVersions();
+	}
 });
 
 // ============================================================ I/R READING HEADS
@@ -779,6 +784,53 @@ function discoverApply() {
 		})
 		.fail(function() { smStatus("#disc-status", channelMsg.UI_AJAX_FAILED, "error"); })
 		.always(function() { smSetBusy(false); });
+}
+
+// =============================================================== UPGRADE TAB
+var upgText = {
+	NOVERSION: "<TMPL_VAR VZLOGGER.UPG_MSG_NOVERSION>",
+	AVAILABLE: "<TMPL_VAR VZLOGGER.UPG_HINT_AVAILABLE>",
+	UPTODATE:  "<TMPL_VAR VZLOGGER.UPG_HINT_UPTODATE>",
+	NOVERHINT: "<TMPL_VAR VZLOGGER.UPG_HINT_NOVERSION>",
+	UPGRADING: "<TMPL_VAR VZLOGGER.UPG_HINT_UPGRADING>",
+	OK:        "<TMPL_VAR VZLOGGER.UPG_HINT_OK>",
+	ERROR:     "<TMPL_VAR VZLOGGER.UPG_HINT_ERROR>"
+};
+
+// Loads the installed and available vzLogger versions and enables the update
+// button only when a newer version exists.
+function upgVersions() {
+	$("#upg-current, #upg-available").text("…");
+	$.ajax({ url: "ajax.cgi", type: "GET", dataType: "json", data: { action: "upgrade-versions" } })
+		.done(function(data) {
+			if (!data || !data.ok) { smStatus("#upg-version-hint", upgText.NOVERHINT, "error"); return; }
+			$("#upg-current").text(data.current || upgText.NOVERSION);
+			$("#upg-available").text(data.available || upgText.NOVERSION);
+			if (data.update_available) {
+				$("#upg-btn").prop("disabled", false);
+				smStatus("#upg-version-hint", upgText.AVAILABLE, "info");
+			} else {
+				$("#upg-btn").prop("disabled", true);
+				var known = data.current && data.available;
+				smStatus("#upg-version-hint", known ? upgText.UPTODATE : upgText.NOVERHINT, known ? "ok" : "error");
+			}
+		})
+		.fail(function() { smStatus("#upg-version-hint", upgText.NOVERHINT, "error"); });
+}
+
+// Runs the update; the button stays disabled during the run so it cannot be
+// started twice. Status messages (blue/green/red) appear below the button.
+function upgradeVzlogger() {
+	if ($("#upg-btn").prop("disabled")) { return; }
+	$("#upg-btn").prop("disabled", true);
+	smStatus("#upg-status", upgText.UPGRADING, "info");
+	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "upgrade-run" } })
+		.done(function(data) {
+			var ok = data && data.ok;
+			smStatus("#upg-status", ok ? upgText.OK : upgText.ERROR, ok ? "ok" : "error");
+			upgVersions();
+		})
+		.fail(function() { smStatus("#upg-status", upgText.ERROR, "error"); upgVersions(); });
 }
 
 </script>
