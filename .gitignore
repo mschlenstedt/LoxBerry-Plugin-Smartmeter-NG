@@ -1,2 +1,5 @@
 # Local release/build artifacts.
 dist/
+
+# Local scratch/reference downloads
+work/
