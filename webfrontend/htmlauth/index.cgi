@@ -19,14 +19,7 @@ my $q   = $cgi->Vars;
 
 my $version = LoxBerry::System::pluginversion();
 
-my $log = LoxBerry::Log->new(
-	name    => "index",
-	package => $lbpplugindir,
-	addtime => 1,
-);
-
 $q->{form} = "irheads" if (!$q->{form});
-$log->LOGSTART("index.cgi form=$q->{form}");
 
 my $template;
 my $templateout;
