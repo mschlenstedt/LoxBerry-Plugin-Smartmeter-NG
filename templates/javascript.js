@@ -387,6 +387,54 @@ function setSave() {
 		.fail(function() { smStatus("#set-savinghint", setMsg.SAVING_FAILED, "error"); });
 }
 
+// ---- Backup / restore of the whole config folder (config_io.cgi) --------
+
+var ioMsg = {
+	IMPORTING:            "<TMPL_VAR VZLOGGER.IO_IMPORTING>",
+	IMPORTED:             "<TMPL_VAR VZLOGGER.IO_IMPORTED>",
+	FAILED:               "<TMPL_VAR VZLOGGER.IO_FAILED>",
+	UI_POST_REQUIRED:     "<TMPL_VAR VZLOGGER.IO_FAILED>",
+	UI_IO_NO_FILE:        "<TMPL_VAR VZLOGGER.UI_IO_NO_FILE>",
+	UI_IO_BAD_ZIP:        "<TMPL_VAR VZLOGGER.UI_IO_BAD_ZIP>",
+	UI_IO_SUBFOLDER:      "<TMPL_VAR VZLOGGER.UI_IO_SUBFOLDER>",
+	UI_IO_EMPTY:          "<TMPL_VAR VZLOGGER.UI_IO_EMPTY>",
+	UI_IO_TOO_LARGE:      "<TMPL_VAR VZLOGGER.UI_IO_TOO_LARGE>",
+	UI_IO_EXTRACT_FAILED: "<TMPL_VAR VZLOGGER.UI_IO_EXTRACT_FAILED>"
+};
+
+// Export is a plain download: navigating to the CGI returns the ZIP as an
+// attachment, so the page itself stays put.
+function cfgExport() {
+	window.location.href = "config_io.cgi?action=export";
+}
+
+function cfgImportPick() {
+	var f = document.getElementById("cfg-import-file");
+	f.value = "";              // allow picking the same file again
+	f.click();
+}
+
+function cfgImportDo(input) {
+	if (!input.files || !input.files.length) { return; }
+	var fd = new FormData();
+	fd.append("action", "import");
+	fd.append("file", input.files[0]);
+	smStatus("#cfg-io-status", ioMsg.IMPORTING, "info");
+	$.ajax({
+		url: "config_io.cgi", type: "POST", data: fd,
+		processData: false, contentType: false, dataType: "json"
+	})
+		.done(function(data) {
+			if (data && data.ok) {
+				smStatus("#cfg-io-status", ioMsg.IMPORTED, "ok");
+				setLoad();     // reflect the restored settings in the form
+			} else {
+				smStatus("#cfg-io-status", (data && ioMsg[data.error_key]) || ioMsg.FAILED, "error");
+			}
+		})
+		.fail(function() { smStatus("#cfg-io-status", ioMsg.FAILED, "error"); });
+}
+
 // =========================================================== SMARTMETER TAB
 
 var meterList = [];
