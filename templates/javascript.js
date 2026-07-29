@@ -623,6 +623,131 @@ function meterAutoDiscover(name) {
 		.fail(function() { meterStatus(meterText.SAVED, "ok"); smSetBusy(false); });
 }
 
+// ---- Import a vzlogger.conf snippet into the add form -------------------
+//
+// vzlogger.conf is JSON with JavaScript-style comments (see the Volkszaehler
+// wiki examples): both /* block */ and // line comments are allowed, including
+// trailing comments after a value. Standard JSON.parse rejects those, so the
+// comments are stripped first. The stripper is string-aware so a "//" or "/*"
+// inside a string value (e.g. "http://localhost/...") is left untouched.
+
+var meterImportMsg = {
+	EMPTY:   "<TMPL_VAR VZLOGGER.MET_IMPORT_ERR_EMPTY>",
+	PARSE:   "<TMPL_VAR VZLOGGER.MET_IMPORT_ERR_PARSE>",
+	NOMETER: "<TMPL_VAR VZLOGGER.MET_IMPORT_ERR_NOMETER>",
+	MULTI:   "<TMPL_VAR VZLOGGER.MET_IMPORT_ERR_MULTI>",
+	PROTO:   "<TMPL_VAR VZLOGGER.MET_IMPORT_ERR_PROTO>",
+	OK:      "<TMPL_VAR VZLOGGER.MET_IMPORT_OK>"
+};
+
+function meterStripConfComments(src) {
+	var out = "", i = 0, n = src.length, inStr = false, esc = false;
+	while (i < n) {
+		var c = src.charAt(i);
+		if (inStr) {
+			out += c;
+			if (esc) { esc = false; }
+			else if (c === "\\") { esc = true; }
+			else if (c === '"') { inStr = false; }
+			i++;
+			continue;
+		}
+		if (c === '"') { inStr = true; out += c; i++; continue; }
+		if (c === "/" && src.charAt(i + 1) === "/") {          // line comment
+			i += 2;
+			while (i < n && src.charAt(i) !== "\n") { i++; }
+			continue;                                          // keep the newline
+		}
+		if (c === "/" && src.charAt(i + 1) === "*") {          // block comment
+			i += 2;
+			while (i < n && !(src.charAt(i) === "*" && src.charAt(i + 1) === "/")) { i++; }
+			i += 2;
+			continue;
+		}
+		out += c;
+		i++;
+	}
+	return out;
+}
+
+// Extracts exactly one meter object from a pasted snippet. Throws a message key
+// when the input is empty, not parseable, or not unambiguous (no meter / more
+// than one meter).
+function meterImportParse(text) {
+	if (!text || text.replace(/\s+/g, "") === "") { throw "EMPTY"; }
+	var data;
+	try { data = JSON.parse(meterStripConfComments(text)); }
+	catch (e) { throw "PARSE"; }
+
+	var meters = null;
+	if (data && typeof data === "object" && Array.isArray(data.meters)) { meters = data.meters; }
+	else if (Array.isArray(data)) { meters = data; }
+
+	if (meters) {
+		if (meters.length === 0) { throw "NOMETER"; }
+		if (meters.length > 1)  { throw "MULTI"; }
+		data = meters[0];
+	}
+	if (!data || typeof data !== "object" || Array.isArray(data)) { throw "NOMETER"; }
+	// A single object is only accepted as a meter if it carries meter fields.
+	if (!("protocol" in data) && !("baudrate" in data) && !("device" in data)) { throw "NOMETER"; }
+	return data;
+}
+
+function meterImportToggle() {
+	var panel = $("#meter-import-panel");
+	$("#meter-import-status").hide();
+	if (panel.is(":visible")) { panel.hide(); }
+	else { panel.show(); $("#meter-import-text").focus(); }
+}
+
+function meterImportApply() {
+	var meter;
+	try { meter = meterImportParse($("#meter-import-text").val()); }
+	catch (key) {
+		smStatus("#meter-import-status", meterImportMsg[key] || meterImportMsg.PARSE, "error");
+		return;
+	}
+
+	// The protocol drives which parameter rows are shown; only the ones the
+	// plugin actually supports can be imported.
+	var proto = String(meter.protocol == null ? "" : meter.protocol).toLowerCase();
+	if (!/^(?:sml|d0|oms|exec|random)$/.test(proto)) {
+		smStatus("#meter-import-status", meterImportMsg.PROTO, "error");
+		return;
+	}
+	$("#meter-protocol").val(proto);
+	meterApplyProto(proto, false);
+
+	function has(k)   { return Object.prototype.hasOwnProperty.call(meter, k); }
+	function bool(v)  { return (v === true || v === 1 || v === "1" || v === "true"); }
+
+	// Every recognised meter-level parameter that the form has a field for.
+	// device and name are deliberately left for the user; channels and all
+	// root-level / unknown keys are ignored.
+	if (has("enabled"))               { $("#meter-enabled").prop("checked", bool(meter.enabled)); }
+	if (has("interval"))              { $("#meter-interval").val(meter.interval); }
+	if (has("host"))                  { $("#meter-host").val(meter.host); }
+	if (has("baudrate"))              { $("#meter-baudrate").val(String(meter.baudrate)); }
+	if (has("baudrate_read"))         { $("#meter-baudrate-read").val(String(meter.baudrate_read)); }
+	if (has("parity"))                { $("#meter-parity").val(String(meter.parity)); }
+	if (has("read_timeout"))          { $("#meter-read-timeout").val(meter.read_timeout); }
+	if (has("pullseq"))               { $("#meter-pullseq").val(meter.pullseq); }
+	if (has("ackseq"))                { $("#meter-ackseq").val(meter.ackseq); }
+	if (has("wait_sync"))             { $("#meter-wait-sync").val(String(meter.wait_sync)); }
+	if (has("baudrate_change_delay")) { $("#meter-bcd").val(meter.baudrate_change_delay); }
+	if (has("key"))                   { $("#meter-key").val(meter.key); }
+	if (has("use_local_time"))        { $("#meter-uselocaltime").val(bool(meter.use_local_time) ? "1" : "0"); }
+	if (has("min"))                   { $("#meter-min").val(meter.min); }
+	if (has("max"))                   { $("#meter-max").val(meter.max); }
+	if (has("command"))               { $("#meter-command").val(meter.command); }
+	if (has("format"))                { $("#meter-format").val(meter.format); }
+
+	$("#meter-import-text").val("");
+	$("#meter-import-panel").hide();
+	meterStatus(meterImportMsg.OK, "ok");
+}
+
 // =========================================================== CHANNELS TAB
 
 var channelMsg = {

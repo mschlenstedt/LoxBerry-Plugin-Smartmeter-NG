@@ -25,6 +25,22 @@
 <details class="lb-collapsible" open>
 	<summary style="font-size:1.15em; font-weight:700;" id="meter-form-title"><TMPL_VAR VZLOGGER.MET_ADD_HEADING></summary>
 	<div class="lb-collapsible-content">
+
+		<div class="sm-import" style="margin-bottom:1.2em;">
+			<button type="button" class="lb-btn" id="meter-import-toggle" onclick="meterImportToggle(); return false;"><TMPL_VAR VZLOGGER.MET_IMPORT_BTN></button>
+			<div id="meter-import-panel" style="display:none; margin-top:0.8em;">
+				<textarea class="lb-input" id="meter-import-text" rows="10" spellcheck="false" style="width:100%; box-sizing:border-box; font-family:var(--lb-font-mono); white-space:pre;" placeholder="<TMPL_VAR VZLOGGER.MET_IMPORT_PLACEHOLDER>"></textarea>
+				<div class="lb-form-help" style="margin-top:0.5em;">
+					<TMPL_VAR VZLOGGER.MET_IMPORT_HELP>
+					<a href="https://wiki.volkszaehler.org/hardware" target="_blank" rel="noopener">https://wiki.volkszaehler.org/hardware</a>
+				</div>
+				<div class="lb-actions" style="margin-top:0.6em;">
+					<button type="button" class="lb-btn lb-btn-primary" id="meter-import-do" onclick="meterImportApply(); return false;"><TMPL_VAR VZLOGGER.MET_IMPORT_DO></button>
+				</div>
+				<div id="meter-import-status" style="display:none;"></div>
+			</div>
+		</div>
+
 		<form id="meter-form" onsubmit="return false;">
 			<input type="hidden" id="meter-original-name" value="">
 
