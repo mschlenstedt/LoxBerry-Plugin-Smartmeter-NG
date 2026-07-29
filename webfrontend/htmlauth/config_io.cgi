@@ -30,6 +30,15 @@ my $MAX_UNPACKED      = 50 * 1024 * 1024;   # 50 MiB unpacked
 my $MAX_ENTRIES       = 500;
 my $SAFE_NAME         = qr/\A[A-Za-z0-9._-]+\z/;
 
+# Runtime flag files that describe the current state of this machine, not the
+# configuration. They must not travel with a backup: the plugin-ownership
+# marker, the manual-stop flag and the OBIS autodiscovery flag.
+my %EXPORT_EXCLUDE = map { $_ => 1 } qw(
+	vzlogger.installed-by-plugin
+	vzlogger_stopped.cfg
+	vzlogger_autodiscovery.cfg
+);
+
 my $cgi       = CGI->new;
 my $configdir = $lbpconfigdir;
 my $action    = $cgi->param("action") || "";
@@ -61,7 +70,7 @@ sub do_export
 		print "Configuration folder not readable.\n";
 		return;
 	};
-	my @files = sort grep { -f "$configdir/$_" && !-l "$configdir/$_" } readdir($dh);
+	my @files = sort grep { -f "$configdir/$_" && !-l "$configdir/$_" && !$EXPORT_EXCLUDE{$_} } readdir($dh);
 	closedir($dh);
 
 	if (!@files) {
