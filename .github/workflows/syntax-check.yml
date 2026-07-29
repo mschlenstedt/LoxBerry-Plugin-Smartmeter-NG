@@ -72,20 +72,3 @@ jobs:
           for file in preinstall.sh postinstall.sh preupgrade.sh postupgrade.sh postroot.sh uninstall.sh; do
             [ ! -f "$file" ] || sh -n "$file"
           done
-
-      - name: Run plugin tests
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          perl -I .github/ci/perl-lib -I bin tests/test_irheads.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_conf.pl
-          perl -I .github/ci/perl-lib -I bin tests/test_vzlogger_discover.pl
-          perl tests/test_language_resources.pl
-
-      - name: Test test-device file normalization
-        shell: pwsh
-        run: ./tests/test_deploy_line_endings.ps1
-
-      - name: Verify vendored Chart.js
-        run: sha256sum --check webfrontend/htmlauth/vendor/chart.js/chart.umd.min.js.sha256

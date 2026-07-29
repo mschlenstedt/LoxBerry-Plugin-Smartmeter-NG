@@ -3,3 +3,16 @@ dist/
 
 # Local scratch/reference downloads
 work/
+
+# Internal / development-only files: kept locally, not tracked in git.
+/AGENTS.md
+/tests/
+/tools/
+/docs/analyse-vzlogger-konzept.md
+/docs/developer-requirements.md
+/docs/lifecycle-test-expectations.md
+/docs/local-builds.md
+/docs/meter-simulator.md
+/docs/release-process.md
+/docs/test-device-workflow.md
+/docs/ui-form-convention.md
