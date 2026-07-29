@@ -11,6 +11,8 @@ head (serial, or a **Tibber Pulse** with a WLAN bridge) and publishes the values
 by MQTT. vzLogger does the actual reading; the LoxBerry MQTT Gateway forwards the
 values to the Miniserver.
 
+A more detailed guide is available in the [LoxBerry Wiki](https://wiki.loxberry.de/plugins/smartmeter_plugin/start).
+
 ## Requirements
 
 - LoxBerry 4.0 or newer.

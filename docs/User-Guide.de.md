@@ -11,7 +11,7 @@ Smartmeter-NG liest digitale Stromzähler über einen optischen IR-Lesekopf
 Werte per MQTT. Das eigentliche Auslesen übernimmt vzLogger; die Weitergabe an
 den Miniserver das LoxBerry MQTT Gateway.
 
-Eine ausführliche, bebilderte Anleitung gibt es als [Wiki-Seite](dokuwiki.txt).
+Eine ausführliche Anleitung gibt es im [LoxBerry Wiki](https://wiki.loxberry.de/plugins/smartmeter_plugin/start).
 
 ## Voraussetzungen
 

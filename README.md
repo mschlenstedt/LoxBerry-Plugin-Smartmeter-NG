@@ -8,7 +8,7 @@ This plugin builds on **vzLogger**, the open-source software of the [Volkszähle
 
 ## Documentation
 
-- [User wiki page (DokuWiki, German)](docs/dokuwiki.txt)
+- [LoxBerry Wiki (user documentation)](https://wiki.loxberry.de/plugins/smartmeter_plugin/start)
 - [Deutsche Benutzerdokumentation](docs/User-Guide.de.md)
 - [English user guide](docs/User-Guide.en.md)
 

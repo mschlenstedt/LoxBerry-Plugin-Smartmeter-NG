@@ -4,7 +4,7 @@ Choose your language:
 
 - [English user guide](User-Guide.en.md)
 - [Deutsche Benutzerdokumentation](User-Guide.de.md)
-- [Wiki-Seite für Endnutzer (DokuWiki, Deutsch)](dokuwiki.txt)
+- [LoxBerry Wiki (Endnutzer-Dokumentation)](https://wiki.loxberry.de/plugins/smartmeter_plugin/start)
 
 See also:
 
