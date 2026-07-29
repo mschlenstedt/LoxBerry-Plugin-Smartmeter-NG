@@ -1,36 +1,34 @@
 #!/bin/sh
 
-# Executed as root during plugin uninstall.
-# Remove only the UDEV rule created by this plugin's daemon.
+# Executed as root during plugin uninstall. LoxBerry stores a copy of this
+# script outside the plugin at install time and runs it with the usual
+# arguments:
+#   command <TEMPFOLDER> <NAME> <FOLDER> <VERSION> <BASEFOLDER>
+#
+# It reverses what the plugin set up. vzlogger and the Volkszaehler apt
+# repository are only removed when the plugin installed vzlogger itself, marked
+# by config/plugins/<folder>/vzlogger.installed-by-plugin (written by
+# postroot.sh). If vzlogger was already present before the plugin was
+# installed, it is left untouched.
+#
+# LoxBerry treats an exit code > 1 as fatal and aborts the whole uninstall, so
+# every step is tolerant and the script always ends with "exit 0".
+
+ARGV3=$3 # Plugin installation folder (e.g. smartmeter-ng)
+ARGV5=$5 # Base folder of LoxBerry
 
 UDEV_RULE="/etc/udev/rules.d/99-smartmeter.rules"
-BRIDGE_SERVICE="smartmeter-ng-vzlogger-bridge.service"
-BRIDGE_UNIT="/etc/systemd/system/$BRIDGE_SERVICE"
-CONFIG_DIR="$5/config/plugins/$3"
-VZLOGGER_MARKER="$CONFIG_DIR/vzlogger.installed-by-plugin"
-VZLOGGER_CONFIG="/etc/vzlogger.conf"
-VZLOGGER_CONFIG_MARKER="/etc/vzlogger.conf.smartmeter-ng"
-VZLOGGER_DROPIN_DIR="/etc/systemd/system/vzlogger.service.d"
-VZLOGGER_DROPIN="$VZLOGGER_DROPIN_DIR/smartmeter-ng.conf"
-RUNTIME_DIR="/var/run/shm/$3"
+RUNTIME_DIR="/var/run/shm/$ARGV3"
+VZLOGGER_MARKER="$ARGV5/config/plugins/$ARGV3/vzlogger.installed-by-plugin"
+
+# These paths mirror the ones written by bin/vzlogger_pkg.sh. Keep them in sync.
 SOURCE_LIST="/etc/apt/sources.list.d/volkszaehler-volkszaehler-org-project.list"
 KEYRING="/usr/share/keyrings/volkszaehler-volkszaehler-org-project-archive-keyring.gpg"
+POLICY_BACKUP="/usr/sbin/policy-rc.d.smartmeter-ng"
 
-if [ -f "$BRIDGE_UNIT" ]; then
-    echo "<INFO> Removing the MQTT bridge service left over from an older release"
-    if command -v systemctl >/dev/null 2>&1; then
-        systemctl stop "$BRIDGE_SERVICE" >/dev/null 2>&1 || true
-        systemctl disable "$BRIDGE_SERVICE" >/dev/null 2>&1 || true
-    fi
-    rm -f "$BRIDGE_UNIT"
-    if command -v systemctl >/dev/null 2>&1; then
-        systemctl daemon-reload >/dev/null 2>&1 || true
-    fi
-else
-    echo "<INFO> Smartmeter vzLogger bridge service not found"
-fi
-
-WATCHDOG="$5/bin/plugins/$3/watchdog.pl"
+# Stop vzlogger through the plugin watchdog while the plugin files are still
+# present, then make sure the packaged service is not left masked or running.
+WATCHDOG="$ARGV5/bin/plugins/$ARGV3/watchdog.pl"
 if [ -x "$WATCHDOG" ]; then
     echo "<INFO> Stopping vzlogger through the plugin watchdog"
     su loxberry -c "$WATCHDOG --action=stop" >/dev/null 2>&1 || true
@@ -43,67 +41,44 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl reset-failed vzlogger.service >/dev/null 2>&1 || true
 fi
 
-if [ -f "$VZLOGGER_DROPIN" ]; then
-    echo "<INFO> Removing Smartmeter vzLogger service override"
-    rm -f "$VZLOGGER_DROPIN"
-    rmdir "$VZLOGGER_DROPIN_DIR" >/dev/null 2>&1 || true
-fi
-
-if [ -f "$VZLOGGER_CONFIG_MARKER" ]; then
-    echo "<INFO> Removing Smartmeter-generated /etc/vzlogger.conf"
-    rm -f "$VZLOGGER_CONFIG"
-    rm -f "$VZLOGGER_CONFIG_MARKER"
-else
-    echo "<INFO> System vzLogger config not found or not owned by this plugin"
-fi
-
-if [ -f "$SOURCE_LIST" ]; then
-    echo "<INFO> Removing Volkszaehler apt source configured by Smartmeter"
-    rm -f "$SOURCE_LIST"
-fi
-
-if [ -f "$KEYRING" ]; then
-    echo "<INFO> Removing Volkszaehler apt keyring configured by Smartmeter"
-    rm -f "$KEYRING"
-fi
-
 if [ -f "$VZLOGGER_MARKER" ]; then
-    if dpkg-query -W -f='${Status}' vzlogger >/dev/null 2>&1; then
-        echo "<INFO> Purging vzLogger package installed by Smartmeter"
-        apt-get purge -y vzlogger || echo "<WARNING> Could not purge vzLogger package"
+    echo "<INFO> vzlogger was installed by the plugin - removing it and the Volkszaehler repository"
+
+    if command -v dpkg-query >/dev/null 2>&1 && \
+       dpkg-query -W -f='${Status}' vzlogger 2>/dev/null | grep -q "install ok installed"; then
+        echo "<INFO> Purging the vzlogger package"
+        DEBIAN_FRONTEND=noninteractive apt-get purge -y vzlogger \
+            || echo "<WARNING> Could not purge the vzlogger package"
     fi
-    rm -f /etc/systemd/system/multi-user.target.wants/vzlogger.service
-    rm -f /etc/rc0.d/*vzlogger /etc/rc1.d/*vzlogger /etc/rc2.d/*vzlogger /etc/rc3.d/*vzlogger
-    rm -f /etc/rc4.d/*vzlogger /etc/rc5.d/*vzlogger /etc/rc6.d/*vzlogger
+
+    echo "<INFO> Removing the Volkszaehler apt repository"
+    rm -f "$SOURCE_LIST" "$KEYRING"
     rm -f "$VZLOGGER_MARKER"
+
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update >/dev/null 2>&1 || true
+    fi
 else
-    echo "<INFO> vzLogger package was not marked as installed by this plugin; leaving package installed"
+    echo "<INFO> vzlogger was present before the plugin - leaving the package and repository in place"
 fi
+
+rm -f "$POLICY_BACKUP"
 
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 
-if command -v apt-get >/dev/null 2>&1; then
-    apt-get update >/dev/null 2>&1 || true
-fi
-
-rm -f /usr/sbin/policy-rc.d.smartmeter-ng
-
 if [ -f "$UDEV_RULE" ] && grep -q "LoxBerry SML-eMon Plugin device rule file" "$UDEV_RULE"; then
-    echo "<INFO> Removing Smartmeter UDEV rule"
+    echo "<INFO> Removing the Smartmeter udev rule"
     rm -f "$UDEV_RULE"
-
     if command -v udevadm >/dev/null 2>&1; then
-        udevadm control --reload-rules >/dev/null 2>&1
-        udevadm trigger >/dev/null 2>&1
+        udevadm control --reload-rules >/dev/null 2>&1 || true
+        udevadm trigger >/dev/null 2>&1 || true
     fi
-else
-    echo "<INFO> Smartmeter UDEV rule not found or not owned by this plugin"
 fi
 
 if [ -d "$RUNTIME_DIR" ]; then
-    echo "<INFO> Removing Smartmeter runtime cache"
+    echo "<INFO> Removing the Smartmeter runtime cache"
     rm -rf "$RUNTIME_DIR"
 fi
 

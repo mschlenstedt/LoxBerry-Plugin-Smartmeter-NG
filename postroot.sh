@@ -23,6 +23,22 @@ if [ "$(id -u)" != "0" ]; then
 	exit 2
 fi
 
+# Record whether vzlogger was already present before the plugin installed it.
+# This must be decided *before* the package helper runs below. The uninstall
+# script reads this marker and only purges vzlogger and removes the Volkszaehler
+# apt repository when the plugin was the one that installed it. An existing
+# marker (from an earlier plugin install) is deliberately kept, so plugin
+# ownership survives upgrades.
+MARKER_FILE="$PLUGIN_CONFIG_DIR/vzlogger.installed-by-plugin"
+mkdir -p "$PLUGIN_CONFIG_DIR"
+if dpkg-query -W -f='${Status}' vzlogger 2>/dev/null | grep -q "install ok installed"; then
+	echo "<INFO> vzlogger is already installed. It will be kept on uninstall."
+else
+	touch "$MARKER_FILE"
+	echo "<INFO> Marked vzlogger for plugin-managed installation."
+fi
+chown -R loxberry:loxberry "$PLUGIN_CONFIG_DIR" 2>/dev/null || true
+
 # vzlogger is installed here rather than through dpkg/apt so the plugin owns
 # the apt call: the packaged service is kept from starting and is disabled
 # afterwards, because the plugin runs vzlogger from its own watchdog.

@@ -69,6 +69,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in preinstall.sh postinstall.sh preupgrade.sh postupgrade.sh postroot.sh uninstall.sh; do
+          for file in preupgrade.sh postupgrade.sh postroot.sh uninstall/uninstall; do
             [ ! -f "$file" ] || sh -n "$file"
           done
