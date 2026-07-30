@@ -73,15 +73,7 @@ jobs:
           version="${{ steps.release.outputs.version }}"
           notes="dist/release-notes.md"
 
-          awk -v version="$version" '
-            index($0, "## " version) == 1 { in_section = 1; next }
-            in_section && /^## / { exit }
-            in_section { print }
-          ' CHANGELOG.md > "$notes"
-
-          if ! grep -q '[^[:space:]]' "$notes"; then
-            printf 'Smartmeter V%s\n' "$version" > "$notes"
-          fi
+          printf 'Smartmeter V%s\n' "$version" > "$notes"
 
       - name: Create release with plugin ZIP
         shell: bash

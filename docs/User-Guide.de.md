@@ -104,5 +104,5 @@ Für die Einbindung in Loxone abonniert das LoxBerry MQTT Gateway die Topics.
 
 ## Fragen & Fehler melden
 
-- GitHub: <https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/issues>
+- GitHub: <https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter-NG/issues>
 - LoxBerry Forum: <https://www.loxforum.com>

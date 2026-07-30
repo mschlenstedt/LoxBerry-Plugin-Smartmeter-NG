@@ -101,5 +101,5 @@ counters in Wh). The LoxBerry MQTT Gateway forwards the topics to Loxone.
 
 ## Questions & bug reports
 
-- GitHub: <https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter/issues>
+- GitHub: <https://github.com/mschlenstedt/LoxBerry-Plugin-Smartmeter-NG/issues>
 - LoxBerry forum: <https://www.loxforum.com>
