@@ -122,7 +122,7 @@ sub preparetemplate
 sub printtemplate
 {
 	# "nojqm" selects the LoxBerry Design System instead of jQuery Mobile.
-	LoxBerry::Web::lbheader($L{'COMMON.PLUGIN_TITLE'} . " V$version", "https://wiki.loxberry.de", "", "nojqm");
+	LoxBerry::Web::lbheader($L{'COMMON.PLUGIN_TITLE'} . " V$version", "https://wiki.loxberry.de/plugins/smartmeter_plugin/start", "", "nojqm");
 	print LoxBerry::Log::get_notifications_html($lbpplugindir);
 	print $templateout->output();
 	LoxBerry::Web::lbfooter();
