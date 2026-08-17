@@ -28,6 +28,10 @@
 # Nothing that runs unattended may use them for that reason. A stop is the user's
 # decision and has to survive a reboot and a plugin upgrade, so the boot daemon
 # and postroot.sh both call "check", not "start" or "restart" (issue #4).
+#
+# Logging: a run only writes a logfile when it actually does something. "check"
+# runs from cron every five minutes and stays completely silent while there is
+# nothing to do - see logsession() below (issue #5).
 
 use strict;
 use warnings;
@@ -74,12 +78,62 @@ if ($action eq "pid") {
 	exit 0;
 }
 
-my $log = LoxBerry::Log->new(name => "watchdog", package => $psubfolder);
-if ($verbose) {
-	$log->stdout(1);
-	$log->loglevel(7);
+# The log session is created on first use, never up front.
+#
+# cron runs "check" every five minutes, and every LoxBerry::Log session means a
+# new timestamped file plus a database entry - roughly 288 logfiles a day on a
+# RAM disk, almost all of them saying that everything is fine. A run with nothing
+# to report now writes nothing at all, while every run that actually does
+# something (start, stop, restart, or a check that has to restart vzlogger) still
+# gets its own logfile (issue #5).
+my $log;
+
+sub logsession
+{
+	return $log if ($log);
+	$log = LoxBerry::Log->new(name => "watchdog", package => $psubfolder);
+	if ($verbose) {
+		$log->stdout(1);
+		$log->loglevel(7);
+	}
+	# Claim the exported LOG* functions explicitly instead of relying on being
+	# the first session created - new() only takes that role when no object
+	# holds it yet.
+	$log->default();
+	LOGSTART("watchdog action=$action");
+	return $log;
 }
-LOGSTART("watchdog action=$action");
+
+sub wlog_inf  { logsession(); LOGINF(@_);  }
+sub wlog_warn { logsession(); LOGWARN(@_); }
+sub wlog_err  { logsession(); LOGERR(@_);  }
+
+# Written whatever the configured loglevel is - as long as logging is on at all.
+#
+# LoxBerry::Log drops anything whose severity is above the plugin loglevel, so at
+# loglevel 3 (ERROR) a perfectly normal stop or restart would leave a logfile
+# containing nothing but its header - which would defeat the whole point of
+# writing one only for real actions. Starting and stopping vzlogger is precisely
+# what one opens this log for, so those lines must not be filtered, and must not
+# pretend to be errors either, which would colour a routine stop red.
+#
+# The mechanism is the one the core uses for its own header lines: write() skips
+# the loglevel filter for a negative severity and then adds no tag of its own, so
+# the tag travels inside the text and the log viewer still colours the line.
+# Loglevel 0 is the one exception - it suppresses the file entirely, which is
+# what "logging off" is supposed to mean.
+sub wlog_event
+{
+	my ($tag, $message) = @_;
+	logsession();
+	$log->write(-1, "<$tag> $message");
+	$log->close();
+	return;
+}
+
+# An explicit --verbose run is always meant to be watched, so it opens the
+# session even when the outcome turns out to be "nothing to do".
+logsession() if ($verbose);
 
 # The runtime directory (PID file, failure counter) is on a tmpfs and is gone
 # after a reboot; daemon/daemon recreates it as root at boot. Creating it from
@@ -89,7 +143,14 @@ LOGSTART("watchdog action=$action");
 # falls back to scanning /proc, so a warning is the right response.
 my $mkpath_err;
 make_path($runtime_dir, { error => \$mkpath_err }) if (!-d $runtime_dir);
-LOGWARN("Could not create $runtime_dir - continuing without a PID file.") if (!-d $runtime_dir);
+if (!-d $runtime_dir) {
+	# Reported only for the actions somebody triggered and is waiting on. This
+	# degrades to a /proc scan rather than failing, and letting the five-minute
+	# check report it would turn a merely degraded runtime directory into the
+	# very flood of logfiles that issue #5 is about.
+	wlog_event("WARNING", "Could not create $runtime_dir - continuing without a PID file.")
+		if ($action ne "check" && $action ne "status");
+}
 
 # Serialize against a parallel run, for example cron firing while the web
 # interface triggers a restart.
@@ -104,10 +165,12 @@ my $lockwait = ($action eq "check") ? 120 : 15;
 my $lockstate = LoxBerry::System::lock(lockfile => "smartmeter-watchdog", wait => $lockwait);
 if ($lockstate) {
 	# Nothing was done here - that has to reach the caller, otherwise a blocked
-	# lock looks exactly like a successful action (issue #2).
-	LOGWARN("Lock not free within ${lockwait}s (blocked by: $lockstate). Nothing was done.");
+	# lock looks exactly like a successful action (issue #2). An event rather
+	# than a warning, because at the default loglevel a warning would be dropped
+	# and this is the line that explains why an action did nothing.
+	wlog_event("WARNING", "Lock not free within ${lockwait}s (blocked by: $lockstate). Nothing was done.");
 	print "Blocked by $lockstate - nothing was done.\n";
-	LOGEND();
+	LOGEND() if ($log);
 	exit $EXIT_BUSY;
 }
 
@@ -120,13 +183,13 @@ elsif ($action eq "restart") { $exit = do_restart(); }
 elsif ($action eq "check") { $exit = do_check(); }
 elsif ($action eq "status") { $exit = vzlogger_running() ? $EXIT_OK : $EXIT_FAILED; }
 else {
-	LOGERR("No valid action. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.");
+	wlog_err("No valid action. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.");
 	print "No valid action specified. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.\n";
 	$exit = $EXIT_USAGE;
 }
 
 LoxBerry::System::unlock(lockfile => "smartmeter-watchdog");
-LOGEND();
+LOGEND() if ($log);
 exit $exit;
 
 sub do_start
@@ -136,23 +199,23 @@ sub do_start
 	unlink($autodiscovery_marker) if (-e $autodiscovery_marker);
 
 	if (vzlogger_running()) {
-		LOGOK("vzlogger is already running.");
+		wlog_event("OK", "vzlogger is already running.");
 		print "vzlogger is already running.\n";
 		return 0;
 	}
 	if (!vzlogger_mode_enabled()) {
-		LOGINF("vzLogger mode is not active. Not starting vzlogger.");
+		wlog_inf("vzLogger mode is not active. Not starting vzlogger.");
 		print "vzLogger mode is not active. Did not start vzlogger.\n";
 		return 0;
 	}
 	my $binary = vzlogger_binary();
 	if (!$binary) {
-		LOGERR("vzlogger binary not found. Install it from the plugin page.");
+		wlog_err("vzlogger binary not found. Install it from the plugin page.");
 		print "vzlogger binary not found.\n";
 		return 1;
 	}
 	if (!-e $vzlogger_config) {
-		LOGERR("Generated configuration is missing: $vzlogger_config");
+		wlog_err("Generated configuration is missing: $vzlogger_config");
 		print "Generated vzLogger configuration is missing. Use Save and apply first.\n";
 		return 1;
 	}
@@ -172,16 +235,16 @@ sub do_start
 	my @missing = missing_devices();
 	if (@missing) {
 		my $list = join(", ", @missing);
-		LOGERR("Not starting vzlogger: device(s) not present under /dev: $list. Reconnect the reading head, then start again.");
+		wlog_err("Not starting vzlogger: device(s) not present under /dev: $list. Reconnect the reading head, then start again.");
 		print "vzLogger not started - device(s) missing: $list\n";
 		return 1;
 	}
 
 	my $logfile = vzlogger_logfile();
-	LOGINF("Starting $binary with $vzlogger_config, logging to $logfile");
+	wlog_inf("Starting $binary with $vzlogger_config, logging to $logfile");
 	my $pid = fork();
 	if (!defined($pid)) {
-		LOGERR("Could not fork: $!");
+		wlog_err("Could not fork: $!");
 		return 1;
 	}
 	if ($pid == 0) {
@@ -203,12 +266,12 @@ sub do_start
 	# success that is already gone.
 	sleep 2;
 	if (!vzlogger_running()) {
-		LOGERR("vzlogger exited right after the start. See $logfile.");
+		wlog_err("vzlogger exited right after the start. See $logfile.");
 		print "vzlogger did not stay running. Check the vzLogger log.\n";
 		return 1;
 	}
 	reset_failures();
-	LOGOK("vzlogger started (PID $pid).");
+	wlog_event("OK", "vzlogger started (PID $pid).");
 	print "Started vzlogger (PID $pid).\n";
 	return 0;
 }
@@ -221,11 +284,11 @@ sub refresh_config
 {
 	my $helper = "$FindBin::Bin/vzlogger_conf.pl";
 	if (!-e $helper) {
-		LOGWARN("Config helper not found ($helper); starting with existing config.");
+		wlog_warn("Config helper not found ($helper); starting with existing config.");
 		return;
 	}
 	my $rc = system("perl '$helper' refresh >/dev/null 2>&1");
-	LOGWARN("Could not refresh vzLogger config before start (rc=$rc).") if ($rc != 0);
+	wlog_warn("Could not refresh vzLogger config before start (rc=$rc).") if ($rc != 0);
 }
 
 sub do_stop
@@ -246,30 +309,30 @@ sub do_stop
 		$pid = find_vzlogger_pid();
 	}
 	if (!$pid) {
-		LOGOK("vzlogger is not running.");
+		wlog_event("OK", "vzlogger is not running.");
 		print "vzlogger is not running.\n";
 		unlink($pid_file);
 		return 0;
 	}
 
-	LOGINF("Stopping vzlogger (PID $pid).");
+	wlog_event("INFO", "Stopping vzlogger (PID $pid).");
 	kill("TERM", $pid);
 	for (1 .. 20) {
 		last if (!process_is_vzlogger($pid));
 		select(undef, undef, undef, 0.25);
 	}
 	if (process_is_vzlogger($pid)) {
-		LOGWARN("vzlogger did not stop on TERM, sending KILL.");
+		wlog_warn("vzlogger did not stop on TERM, sending KILL.");
 		kill("KILL", $pid);
 		select(undef, undef, undef, 0.5);
 	}
 	unlink($pid_file);
 	if (process_is_vzlogger($pid)) {
-		LOGERR("Could not stop vzlogger (PID $pid).");
+		wlog_err("Could not stop vzlogger (PID $pid).");
 		print "Could not stop vzlogger.\n";
 		return 1;
 	}
-	LOGOK("vzlogger stopped.");
+	wlog_event("OK", "vzlogger stopped.");
 	print "Stopped vzlogger.\n";
 	return 0;
 }
@@ -287,7 +350,7 @@ sub do_restart
 	if ($rc != $EXIT_OK) {
 		# Deliberately no start attempt here: the old process still holds the
 		# serial device, so a second instance would only add a second failure.
-		LOGERR("Not restarting - the running vzlogger could not be stopped.");
+		wlog_err("Not restarting - the running vzlogger could not be stopped.");
 		print "Could not stop the running vzlogger - not restarted.\n";
 		return $EXIT_FAILED;
 	}
@@ -298,11 +361,11 @@ sub do_restart
 
 	my $newpid = read_pid() || find_vzlogger_pid() || 0;
 	if ($oldpid && $newpid == $oldpid) {
-		LOGERR("Restart did not take effect: vzlogger is still PID $oldpid and therefore still running its previous configuration.");
+		wlog_err("Restart did not take effect: vzlogger is still PID $oldpid and therefore still running its previous configuration.");
 		print "Restart did not replace the running process (PID $oldpid).\n";
 		return $EXIT_FAILED;
 	}
-	LOGOK("vzlogger restarted (PID $oldpid -> $newpid).") if ($newpid);
+	wlog_event("OK", "vzlogger restarted (PID $oldpid -> $newpid).") if ($newpid);
 	return $EXIT_OK;
 }
 
@@ -311,41 +374,44 @@ sub do_restart
 # configuration is not restarted forever.
 sub do_check
 {
-	if (-e $stopped_marker) {
-		LOGOK("vzlogger was stopped manually. Nothing to do.");
-		return 0;
-	}
+	# Every path that concludes "nothing to do" returns SILENTLY - no log call,
+	# so no log session and no logfile. This runs from cron every five minutes;
+	# a line saying that all is well, written 288 times a day onto a RAM disk,
+	# buries the runs that actually matter. Only acting is worth recording.
+	#
+	# An explicit --verbose run still logs, because logsession() is opened up
+	# front for it.
+
+	return 0 if (-e $stopped_marker);
+
 	# Keep the Tibber Pulse bridges alive independently of vzlogger, so a crashed
-	# bridge is restarted even while vzlogger itself is fine.
+	# bridge is restarted even while vzlogger itself is fine. Starting one is an
+	# action and logs; finding them all alive is silent.
 	ensure_tibberpulse();
+
 	# Do not restart while OBIS discovery holds the device. A stale marker (e.g.
 	# discovery was killed) is cleaned up so the service is not stuck forever.
 	if (-e $autodiscovery_marker) {
 		my $age = time - (stat($autodiscovery_marker))[9];
-		if ($age < $autodiscovery_stale) {
-			LOGOK("OBIS discovery is running. Nothing to do.");
-			return 0;
-		}
-		LOGWARN("Stale autodiscovery marker (${age}s old). Removing it.");
+		return 0 if ($age < $autodiscovery_stale);
+		wlog_event("WARNING", "Stale autodiscovery marker (${age}s old). Removing it.");
 		unlink($autodiscovery_marker);
 	}
-	if (!vzlogger_mode_enabled()) {
-		LOGOK("vzLogger mode is not active. Nothing to do.");
-		return 0;
-	}
+
+	return 0 if (!vzlogger_mode_enabled());
+
 	if (vzlogger_running()) {
 		reset_failures();
-		LOGOK("vzlogger is running.");
 		return 0;
 	}
 
 	my $failures = read_failures() + 1;
 	write_failures($failures);
 	if ($failures > $max_failures) {
-		LOGERR("vzlogger failed $failures times in a row. Not restarting again until it is started manually.");
+		wlog_err("vzlogger failed $failures times in a row. Not restarting again until it is started manually.");
 		return 1;
 	}
-	LOGWARN("vzlogger is not running (failure $failures of $max_failures). Restarting.");
+	wlog_event("WARNING", "vzlogger is not running (failure $failures of $max_failures). Restarting.");
 	return do_start();
 }
 
@@ -449,7 +515,7 @@ sub start_tibberpulse
 	return if (tibberpulse_running($name));
 	my $script = tibberpulse_script();
 	return if (!-e $script);
-	LOGINF("Starting Tibber Pulse bridge '$name'.");
+	wlog_event("INFO", "Starting Tibber Pulse bridge '$name'.");
 	my $pid = fork();
 	return if (!defined($pid));
 	if ($pid == 0) {
