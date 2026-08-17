@@ -67,11 +67,31 @@ sub vz_status
 
 # Runs a mutating watchdog service action (start/stop/restart), then returns the
 # resulting status so the UI can update the badge in one round trip.
+#
+# The exit code is what makes the difference between "done" and "looked done":
+# the watchdog can decline to do anything at all (lock held by a plugin install,
+# an apt run or the periodic check, exit 3) or fail to replace the process (exit
+# 1). Both leave a vzlogger running, so a status probe alone reports a cheerful
+# green badge with the old PID - which is what kept issue #2 invisible. The
+# status is still read either way, because the badge should show the state the
+# service is really in, even when the action failed.
 sub vz_service_action
 {
 	my ($what) = @_;
-	LoxBerry::System::execute(command => "$lbpbindir/watchdog.pl --action=$what 2>&1");
-	return vz_status();
+	# No "2>&1" in the command: execute() captures stderr separately, and
+	# appending a redirection would force a wrapper shell.
+	my ($rc, $out) = LoxBerry::System::execute(command => "$lbpbindir/watchdog.pl --action=$what");
+	my $status = vz_status();
+	return $status if (!$rc);
+
+	$status->{ok} = JSON::PP::false;
+	$status->{error_key} = ($rc == 3) ? "UI_SVC_BUSY" : "UI_SVC_FAILED";
+	# One line of context for the message; the full story is in the watchdog log.
+	my $detail = defined($out) ? $out : "";
+	$detail =~ s/\s+\z//;
+	$detail =~ s/\n.*//s;
+	$status->{detail} = $detail if ($detail ne "");
+	return $status;
 }
 
 # Returns the current vzlogger.conf (or its default skeleton) as a structure the

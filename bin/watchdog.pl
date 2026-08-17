@@ -47,6 +47,13 @@ my $autodiscovery_stale = 120;
 my $failure_file = "$runtime_dir/vzlogger_watchdog_failures";
 my $max_failures = 5;
 
+# Exit codes. The web interface turns them into a message, so they have to stay
+# distinct: "could not even start" is a try-again, "tried and failed" is not.
+my $EXIT_OK     = 0;   # the action was carried out
+my $EXIT_FAILED = 1;   # the action was attempted and failed
+my $EXIT_USAGE  = 2;   # no or unknown action
+my $EXIT_BUSY   = 3;   # the lock was not free - nothing was done at all
+
 my ($verbose, $action);
 GetOptions("verbose=s" => \$verbose, "action=s" => \$action);
 $action = "" if (!defined($action));
@@ -71,12 +78,22 @@ make_path($runtime_dir) if (!-d $runtime_dir);
 
 # Serialize against a parallel run, for example cron firing while the web
 # interface triggers a restart.
-my $lockstate = LoxBerry::System::lock(lockfile => "smartmeter-watchdog", wait => 120);
+#
+# The periodic check can afford to queue behind whatever is running; the web
+# interface cannot, because a CGI that blocks for two minutes reads as a hang.
+# Note that LoxBerry::System::lock() waits on more than this lock file: it also
+# blocks while apt/dpkg or an unattended-upgrade is running, and on the lbupdate
+# and plugininstall locks - so this branch is not exotic on a Raspberry Pi that
+# installs its updates in the background.
+my $lockwait = ($action eq "check") ? 120 : 15;
+my $lockstate = LoxBerry::System::lock(lockfile => "smartmeter-watchdog", wait => $lockwait);
 if ($lockstate) {
-	LOGWARN("Another watchdog run is active: $lockstate");
-	print "$lockstate currently running - Quitting.\n";
+	# Nothing was done here - that has to reach the caller, otherwise a blocked
+	# lock looks exactly like a successful action (issue #2).
+	LOGWARN("Lock not free within ${lockwait}s (blocked by: $lockstate). Nothing was done.");
+	print "Blocked by $lockstate - nothing was done.\n";
 	LOGEND();
-	exit 1;
+	exit $EXIT_BUSY;
 }
 
 my $exit = 0;
@@ -86,11 +103,11 @@ elsif ($action eq "stop-discovery") { write_marker($autodiscovery_marker); $exit
 elsif ($action eq "end-discovery") { unlink($autodiscovery_marker); $exit = do_check(); }
 elsif ($action eq "restart") { $exit = do_restart(); }
 elsif ($action eq "check") { $exit = do_check(); }
-elsif ($action eq "status") { $exit = vzlogger_running() ? 0 : 1; }
+elsif ($action eq "status") { $exit = vzlogger_running() ? $EXIT_OK : $EXIT_FAILED; }
 else {
 	LOGERR("No valid action. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.");
 	print "No valid action specified. --action=start|stop|stop-discovery|end-discovery|restart|check|status is required.\n";
-	$exit = 2;
+	$exit = $EXIT_USAGE;
 }
 
 LoxBerry::System::unlock(lockfile => "smartmeter-watchdog");
@@ -242,12 +259,36 @@ sub do_stop
 	return 0;
 }
 
+# A restart has to actually replace the process. That something called vzlogger
+# is running afterwards proves nothing: a survivor with the old configuration in
+# memory looks identical from the outside, and that is precisely the state the
+# web interface used to report as success (issue #2). So the old PID is noted
+# first and compared afterwards.
 sub do_restart
 {
+	my $oldpid = read_pid() || find_vzlogger_pid() || 0;
+
 	my $rc = do_stop(0);
-	return $rc if ($rc != 0);
+	if ($rc != $EXIT_OK) {
+		# Deliberately no start attempt here: the old process still holds the
+		# serial device, so a second instance would only add a second failure.
+		LOGERR("Not restarting - the running vzlogger could not be stopped.");
+		print "Could not stop the running vzlogger - not restarted.\n";
+		return $EXIT_FAILED;
+	}
+
 	sleep 1;
-	return do_start();
+	$rc = do_start();
+	return $rc if ($rc != $EXIT_OK);
+
+	my $newpid = read_pid() || find_vzlogger_pid() || 0;
+	if ($oldpid && $newpid == $oldpid) {
+		LOGERR("Restart did not take effect: vzlogger is still PID $oldpid and therefore still running its previous configuration.");
+		print "Restart did not replace the running process (PID $oldpid).\n";
+		return $EXIT_FAILED;
+	}
+	LOGOK("vzlogger restarted (PID $oldpid -> $newpid).") if ($newpid);
+	return $EXIT_OK;
 }
 
 # Called periodically. Restarts vzlogger only if it should be running and was

@@ -241,7 +241,10 @@ var smSvc = {
 	STOPPED: "<TMPL_VAR COMMON.SERVICE_STOPPED>",
 	UNKNOWN: "<TMPL_VAR COMMON.SERVICE_UNKNOWN>",
 	WORKING: "<TMPL_VAR COMMON.SERVICE_WORKING>",
-	FAILED:  "<TMPL_VAR COMMON.SERVICE_FAILED>"
+	FAILED:  "<TMPL_VAR COMMON.SERVICE_FAILED>",
+	// Keyed by the error_key ajax.cgi returns for a non-zero watchdog exit code.
+	UI_SVC_BUSY:   "<TMPL_VAR COMMON.UI_SVC_BUSY>",
+	UI_SVC_FAILED: "<TMPL_VAR COMMON.UI_SVC_FAILED>"
 };
 
 function smEsc(value) {
@@ -281,8 +284,23 @@ function smServiceRender() {
 				'<a href="#" class="vzsvc-btn" onclick="smServiceRestart(); return false;"><span class="vzsvc-ico"><i class="pi pi-check"></i></span>' + smEsc(smSvc.RESTART) + '</a>' +
 				'<a href="#" class="vzsvc-btn" onclick="smServiceStop(); return false;"><span class="vzsvc-ico"><i class="pi pi-times"></i></span>' + smEsc(smSvc.STOP) + '</a>' +
 			'</div>' +
+			// Failures of an action live here rather than in the badge: the badge
+			// keeps showing the state the service is actually in, and the five
+			// second status poll would overwrite a message put there anyway.
+			'<div id="vz-svc-msg" style="display:none;"></div>' +
 		'</div><hr><br>';
 	smServiceIcon("unknown");
+}
+
+// Shows or clears the message line under the service block. It stays until the
+// next action, so a failed restart cannot scroll past unnoticed.
+function smServiceMsg(text) {
+	var el = $("#vz-svc-msg");
+	if (!text) { el.hide().empty(); return; }
+	el.text(text).css({
+		display: "block", "text-align": "center", "margin-top": "8px",
+		"font-size": "12.5px", "line-height": "1.5", color: "#c0392b"
+	});
 }
 
 // Non-clickable status badge (a coloured, non-interactive icon button) replacing
@@ -310,10 +328,19 @@ function smServiceFailed() {
 }
 
 function smServiceShow(data) {
-	if (data && data.ok && data.running && data.pid) {
+	if (!data) { smServiceFailed(); return; }
+
+	// An action that failed still reports the true state of the service, so the
+	// badge is drawn from running/pid and the failure goes to the message line.
+	// Without this an unheeded exit code turned every failure into a green badge
+	// with the old PID (issue #2).
+	if (!data.ok) {
+		smServiceMsg((smSvc[data.error_key] || smSvc.FAILED) + (data.detail ? " (" + data.detail + ")" : ""));
+	}
+	if (data.running && data.pid) {
 		smServiceBox("background:#6dac20; color:black", '<span class="vzsvc-small">PID: ' + smEsc(data.pid) + '</span>');
 		smServiceIcon("ok");
-	} else if (data && data.ok) {
+	} else if (data.ok || data.error_key) {
 		smServiceBox("background:#FF6339; color:black", smEsc(smSvc.STOPPED));
 		smServiceIcon("error");
 	} else {
@@ -329,6 +356,7 @@ function smServiceStatus() {
 
 function smServiceRun(action) {
 	clearInterval(smInterval);
+	smServiceMsg("");
 	smServiceBox("color:blue", smEsc(smSvc.WORKING));
 	smServiceIcon("unknown");
 	$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: action } })
@@ -670,7 +698,15 @@ function meterAutoDiscover(name) {
 			if (!cands.length) { meterStatus(meterDiscMsg.NONE, "info"); smSetBusy(false); return; }
 			$.ajax({ url: "ajax.cgi", type: "POST", dataType: "json", data: { action: "vzconf-add-channels", channels: JSON.stringify({ meter: name, channels: cands }) } })
 				.done(function(r) {
-					if (r && r.ok) { meterStatus(meterDiscMsg.DONE.replace("{n}", cands.length), "ok"); }
+					if (r && r.ok) {
+						meterStatus(meterDiscMsg.DONE.replace("{n}", cands.length), "ok");
+						// Discovery already stopped and started vzLogger once - but
+						// that happened before these channels were written, so the
+						// running process does not know them. Finish the cycle here
+						// instead of leaving the user with a service that looks
+						// healthy and reads nothing (issue #2).
+						smServiceRun("vz-restart");
+					}
 					else { meterStatus(meterText.SAVED, "ok"); }
 				})
 				.fail(function() { meterStatus(meterText.SAVED, "ok"); })
@@ -818,7 +854,7 @@ var channelMsg = {
 var discText = {
 	RUNNING: "<TMPL_VAR VZLOGGER.DISC_RUNNING>",
 	NONE:    "<TMPL_VAR VZLOGGER.DISC_NONE>",
-	SAVED:   "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
+	APPLIED: "<TMPL_VAR VZLOGGER.DISC_APPLIED>"
 };
 var channelText = {
 	NONE:       "<TMPL_VAR VZLOGGER.CH_NONE>",
@@ -1017,7 +1053,11 @@ function discoverApply() {
 				channelFillMeters(meters);
 				channelRenderList(meters);
 				$("#disc-results").hide();
-				smStatus("#disc-status", discText.SAVED, "ok");
+				smStatus("#disc-status", discText.APPLIED, "ok");
+				// See meterAutoDiscover(): the restart that discovery performs
+				// happens before these channels exist, so it has to be repeated
+				// now - otherwise vzLogger keeps running its previous config.
+				smServiceRun("vz-restart");
 			} else {
 				smStatus("#disc-status", (data && channelMsg[data.error_key]) || channelMsg.UI_AJAX_FAILED, "error");
 			}
