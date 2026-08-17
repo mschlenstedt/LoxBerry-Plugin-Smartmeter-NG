@@ -275,7 +275,8 @@ sub normalize_meter
 		$m->{baudrate}       = as_int($form->{baudrate}, 9600);
 		$m->{parity}         = valid_parity($form->{parity}, "8n1");
 		set_if($m, "pullseq", trimmed($form->{pullseq}));
-		$m->{use_local_time} = as_bool($form->{use_local_time});
+		# Defaults to on - see the note at the oms branch below.
+		$m->{use_local_time} = as_bool_default($form->{use_local_time}, 1);
 	} elsif ($proto eq "d0") {
 		set_if($m, "host", trimmed($form->{host}));
 		$m->{baudrate}       = as_int($form->{baudrate}, 300);
@@ -291,7 +292,15 @@ sub normalize_meter
 	} elsif ($proto eq "oms") {
 		$m->{baudrate}       = as_int($form->{baudrate}, 9600);
 		set_if($m, "key", trimmed($form->{key}));
-		$m->{use_local_time} = as_bool($form->{use_local_time});
+		# Household meters that send no set clock are the common case, not the
+		# exception, and vzLogger's failure mode for them is silent: it reads the
+		# meter fine and then discards every telegram ("timestamp before 1990,
+		# IGNORING"), leaving all channels at zero forever. The meter's own clock
+		# buys nothing here either - the values go to MQTT and the Miniserver
+		# timestamps them itself. So this defaults to on for both protocols that
+		# know the option (sml and oms; d0, exec and random have no such option
+		# in vzLogger). An explicit 0 from the form still wins.
+		$m->{use_local_time} = as_bool_default($form->{use_local_time}, 1);
 		$m->{mbus_debug}     = JSON::PP::false;
 	} elsif ($proto eq "random") {
 		# Test protocol: generates random values, no device needed.
@@ -440,6 +449,9 @@ sub new_uuid
 
 sub set_if { my ($h, $k, $v) = @_; $h->{$k} = "$v" if (defined($v) && $v ne ""); }
 sub as_bool { my ($v) = @_; return (defined($v) && $v ne "" && $v ne "0" && $v ne "false") ? JSON::PP::true : JSON::PP::false; }
+# Like as_bool, but tells "not supplied" apart from an explicit false - needed
+# wherever the default is true, because as_bool maps both to false.
+sub as_bool_default { my ($v, $d) = @_; return as_bool((defined($v) && $v ne "") ? $v : $d); }
 sub as_int { my ($v, $d) = @_; return (defined($v) && !ref($v) && $v =~ /\A\s*(-?\d+)\s*\z/) ? int($1) : $d; }
 sub as_double { my ($v, $d) = @_; return (defined($v) && !ref($v) && $v =~ /\A\s*(-?\d+(?:\.\d+)?)\s*\z/) ? ($1 + 0) : $d; }
 sub valid_parity { my ($v, $d) = @_; $v = trimmed($v); return ($v =~ /\A(?:8n1|7n1|7e1|7o1)\z/) ? $v : $d; }

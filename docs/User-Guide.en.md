@@ -103,8 +103,12 @@ counters in Wh). The LoxBerry MQTT Gateway forwards the topics to Loxone.
   the meter is being read but no values arrive, set the log level to 6 (info)
   and restart vzLogger — the vzLogger log then also contains lines such as
   „meter connection established“ or the hint that a meter sends no clock and its
-  telegrams are therefore discarded (the meter option **Use local time** is the
-  cure for that one).
+  telegrams are therefore discarded.
+- **All channels stay empty although the meter is being read:** the meter most
+  likely sends no set clock, so vzLogger discards every telegram. The cure is the
+  meter option **Use local time**. Newly created meters already have it set to
+  *yes*; meters carried over from older plugin versions may still have it on
+  *no* — switch it once, save, and restart vzLogger.
 
 ## Questions & bug reports
 

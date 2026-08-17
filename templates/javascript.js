@@ -459,10 +459,14 @@ var meterText = {
 	DELCONFIRM: "<TMPL_VAR VZLOGGER.MET_DELETE_CONFIRM>",
 	SAVED:      "<TMPL_VAR COMMON.HINT_SAVED_RESTART>"
 };
+// Defaults for a new meter, per protocol. use_local_time is on wherever vzLogger
+// knows the option (sml and oms), because meters without a set clock are the
+// common case and vzLogger silently discards their telegrams without it - see
+// normalize_meter() in bin/vzlogger_conf.pl.
 var meterDefaults = {
-	sml: { baudrate: "9600", parity: "8n1" },
+	sml: { baudrate: "9600", parity: "8n1", uselocaltime: "1" },
 	d0:  { baudrate: "300",  parity: "7e1" },
-	oms: { baudrate: "9600", parity: "8n1" }
+	oms: { baudrate: "9600", parity: "8n1", uselocaltime: "1" }
 };
 
 function meterLoadDevices() {
@@ -492,6 +496,9 @@ function meterApplyProto(proto, resetDefaults) {
 		$("#meter-baudrate").val(meterDefaults[proto].baudrate);
 		$("#meter-baudrate-read").val(meterDefaults[proto].baudrate);
 		$("#meter-parity").val(meterDefaults[proto].parity);
+		if (meterDefaults[proto].uselocaltime !== undefined) {
+			$("#meter-uselocaltime").val(meterDefaults[proto].uselocaltime);
+		}
 	}
 	if (resetDefaults && proto === "random") {
 		$("#meter-min").val("0");
@@ -639,7 +646,8 @@ function meterFormReset() {
 	$("#meter-ackseq").val("auto");
 	$("#meter-wait-sync").val("off");
 	$("#meter-bcd").val("0");
-	$("#meter-uselocaltime").val("0");
+	// use_local_time is not reset here - meterApplyProto() above owns it,
+	// because its default depends on the protocol.
 	$("#meter-min").val("0");
 	$("#meter-max").val("100");
 	$("#meter-command, #meter-format").val("");

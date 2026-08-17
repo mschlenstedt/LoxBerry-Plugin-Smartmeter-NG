@@ -107,7 +107,13 @@ Für die Einbindung in Loxone abonniert das LoxBerry MQTT Gateway die Topics.
   Loglevel auf 6 (Info) stellen und vzLogger neu starten — dann stehen im
   vzLogger-Log auch Zeilen wie „meter connection established“ oder der Hinweis,
   dass ein Zähler keine Uhrzeit mitsendet und die Telegramme deshalb verworfen
-  werden (dagegen hilft die Zähler-Option **Lokale Zeit verwenden**).
+  werden.
+- **Alle Kanäle bleiben leer, obwohl der Zähler gelesen wird:** Der Zähler sendet
+  vermutlich keine gestellte Uhr, vzLogger verwirft dann jedes Telegramm. Abhilfe
+  ist die Zähler-Option **Lokale Zeit verwenden**. Bei neu angelegten Zählern
+  steht sie bereits auf *Ja*; Zähler aus älteren Versionen des Plugins können sie
+  noch auf *Nein* stehen haben — dann einmal umstellen, speichern und vzLogger
+  neu starten.
 
 ## Fragen & Fehler melden
 
