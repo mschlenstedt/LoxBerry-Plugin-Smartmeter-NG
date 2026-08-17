@@ -10,6 +10,8 @@
 use strict;
 use warnings;
 use CGI;
+use POSIX qw(strftime);
+use URI::Escape;
 use LoxBerry::System;
 use LoxBerry::Web;
 use LoxBerry::Log;
@@ -67,6 +69,40 @@ sub form_logfiles
 {
 	&preparetemplate();
 	$templateout->param("LOGLIST", LoxBerry::Web::loglist_html());
+
+	# Two log files do not go through LoxBerry's logging library and are
+	# therefore not in the log database, so loglist_html() cannot know about
+	# them: vzlogger writes its own file through its "log" option (see
+	# bin/watchdog.pl and bin/vzlogger_conf.pl), and daemon/daemon is a shell
+	# script that appends to one. They are listed here by hand, the way
+	# Stats4Lox lists the InfluxDB, Telegraf and Grafana logs.
+	#
+	# The directory is taken from LoxBerry::System, never written out: the
+	# plugin folder is defined in plugin.cfg and is not fixed.
+	my @candidates = (
+		{ file => "$lbplogdir/vzlogger.log", title => $L{'LOGFILES.FILE_VZLOGGER'} },
+		{ file => "$lbplogdir/daemon.log",   title => $L{'LOGFILES.FILE_DAEMON'} },
+	);
+
+	my @rows;
+	foreach my $entry (@candidates) {
+		next if (!-e $entry->{file});
+		my $mtime = (stat($entry->{file}))[9];
+		push @rows, {
+			TITLE => $entry->{title},
+			DATE  => POSIX::strftime("%d.%m.%Y %H:%M:%S", localtime($mtime)),
+			SIZE  => LoxBerry::System::bytes_humanreadable(-s $entry->{file}, "B"),
+			# only=once: the viewer would otherwise poll the file every 300 ms,
+			# which is a lot of traffic for a log that may be a few MB.
+			URL   => "/admin/system/tools/logfile.cgi?logfile="
+			         . URI::Escape::uri_escape($entry->{file})
+			         . "&header=html&format=template&only=once",
+		};
+	}
+	if (@rows) {
+		$templateout->param("EXTRALOGS_EXIST", 1);
+		$templateout->param("EXTRALOGS", \@rows);
+	}
 	return();
 }
 

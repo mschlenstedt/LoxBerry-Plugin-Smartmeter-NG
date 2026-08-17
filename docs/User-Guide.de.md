@@ -101,6 +101,13 @@ Für die Einbindung in Loxone abonniert das LoxBerry MQTT Gateway die Topics.
   Bridge prüfen. Bei Fehlern erhöht das Plugin das Abfrageintervall automatisch
   (im Logfile der Bridge nachvollziehbar).
 - **Protokolle:** Reiter **Logfiles** (vzLogger, Watchdog, Updates, Tibber-Pulse).
+- **vzLogger sagt nichts:** Wie ausführlich vzLogger schreibt, hängt am Loglevel
+  des Plugins (Plugin-Verwaltung). Beim voreingestellten Loglevel 3 protokolliert
+  vzLogger nur Fehler. Wenn der Zähler gelesen wird, aber keine Werte ankommen,
+  Loglevel auf 6 (Info) stellen und vzLogger neu starten — dann stehen im
+  vzLogger-Log auch Zeilen wie „meter connection established“ oder der Hinweis,
+  dass ein Zähler keine Uhrzeit mitsendet und die Telegramme deshalb verworfen
+  werden (dagegen hilft die Zähler-Option **Lokale Zeit verwenden**).
 
 ## Fragen & Fehler melden
 

@@ -98,6 +98,13 @@ counters in Wh). The LoxBerry MQTT Gateway forwards the topics to Loxone.
   webserver is enabled. On errors the plugin raises the poll interval
   automatically (visible in the bridge's log file).
 - **Logs:** the **Logfiles** tab (vzLogger, watchdog, updates, Tibber Pulse).
+- **vzLogger says nothing:** how much vzLogger writes depends on the plugin's
+  log level (plugin management). At the default level 3 it logs errors only. If
+  the meter is being read but no values arrive, set the log level to 6 (info)
+  and restart vzLogger — the vzLogger log then also contains lines such as
+  „meter connection established“ or the hint that a meter sends no clock and its
+  telegrams are therefore discarded (the meter option **Use local time** is the
+  cure for that one).
 
 ## Questions & bug reports
 

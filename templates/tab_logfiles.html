@@ -1,8 +1,27 @@
 <div class="lb-content">
 
 <h2><TMPL_VAR COMMON.TAB_LOGFILES></h2>
-<p><TMPL_VAR COMMON.TAB_PLACEHOLDER></p>
+<p style="color:var(--lb-text-muted); font-size:0.9rem; line-height:1.6;"><TMPL_VAR LOGFILES.HINT></p>
 
 <TMPL_VAR LOGLIST>
+
+<TMPL_IF EXTRALOGS_EXIST>
+<details class="lb-collapsible" id="coll_extra_logs" open>
+	<summary class="lb-section-title"><TMPL_VAR LOGFILES.TITLE_SERVICES> <span style="font-size:80%;">(<TMPL_VAR LOGFILES.HINT_SERVICES>)</span></summary>
+	<div class="lb-table-scroll">
+	<table class="lb-table">
+		<TMPL_LOOP EXTRALOGS>
+		<tr>
+			<td><TMPL_VAR TITLE></td>
+			<td><TMPL_VAR DATE></td>
+			<td><a class="lb-btn lb-btn-sm lb-btn-icon" href="<TMPL_VAR URL>" target="_blank"><i class="pi pi-external-link"></i> <TMPL_VAR LOGFILES.BUTTON_OPEN></a></td>
+			<td><TMPL_VAR SIZE></td>
+		</tr>
+		</TMPL_LOOP>
+	</table>
+	</div>
+	<div class="lb-form-help" style="margin-top:1em;"><TMPL_VAR LOGFILES.HINT_VZLOGGER></div>
+</details>
+</TMPL_IF>
 
 </div>

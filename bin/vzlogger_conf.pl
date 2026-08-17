@@ -14,8 +14,9 @@
 #
 # Only three values are user-controlled: mqtt.topic, local.port and retry.
 # Everything else is derived automatically on every write:
-#   verbosity  <- plugin loglevel (LoxBerry 0-7 mapped to vzlogger 0/1/3/5/10)
-#   log        <- the plugin's vzlogger log path
+#   verbosity  <- plugin loglevel (LoxBerry 0-7 mapped to vzlogger -1/0/1/3/5/10)
+#   log        <- the plugin's vzlogger log path (log/plugins/<folder>/vzlogger.log,
+#                 the file the watchdog also passes as -o and the Logfiles tab links)
 #   local      <- enabled/index/timeout/buffer fixed; only port from the user
 #   mqtt       <- connection from LoxBerry::IO::mqtt_connectiondetails()
 #                 (host/port/user/pass/TLS); qos=0, retain=1, timestamp=1,
@@ -463,9 +464,27 @@ sub enforce_auto
 }
 
 # vzlogger verbosity from the plugin's LoxBerry loglevel (0-7).
+#
+# vzlogger drops a message when its level is greater than the verbosity, and its
+# levels are alert=0, error=1, warning=3, info=5, debug=10, finest=15. So the
+# verbosity is not a scale of its own but the highest level still written, which
+# maps onto the LoxBerry levels almost one to one:
+#
+#   0 off      -> -1  nothing at all (0 would still let alerts through)
+#   1 alert    ->  0
+#   2 critical ->  1  (vzlogger has no separate critical level)
+#   3 error    ->  1
+#   4 warning  ->  3
+#   5 ok       ->  5  (vzlogger has no "ok"; info is the next one up)
+#   6 info     ->  5
+#   7 debug    -> 10
+#
+# Worth knowing when reading the log: at the LoxBerry default of 3 vzlogger says
+# nothing but errors. Lines like "meter connection established" or the hint that
+# a meter sends no clock are info level and need loglevel 6.
 sub auto_verbosity
 {
-	my %map = (0 => 0, 1 => 0, 2 => 1, 3 => 1, 4 => 3, 5 => 5, 6 => 5, 7 => 10);
+	my %map = (0 => -1, 1 => 0, 2 => 1, 3 => 1, 4 => 3, 5 => 5, 6 => 5, 7 => 10);
 	my $ll = plugin_loglevel();
 	$ll = 3 if (!defined($ll) || $ll !~ /\A\d+\z/ || $ll > 7);
 	return $map{$ll};

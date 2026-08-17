@@ -33,6 +33,7 @@ jobs:
             libfile-homedir-perl \
             libhtml-template-perl \
             libjson-perl \
+            liburi-perl \
             php-cli
 
       - name: Check Perl syntax

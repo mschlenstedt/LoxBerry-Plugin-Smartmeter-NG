@@ -146,7 +146,7 @@ sub do_start
 	}
 
 	my $logfile = vzlogger_logfile();
-	LOGINF("Starting $binary with $vzlogger_config");
+	LOGINF("Starting $binary with $vzlogger_config, logging to $logfile");
 	my $pid = fork();
 	if (!defined($pid)) {
 		LOGERR("Could not fork: $!");
@@ -156,6 +156,10 @@ sub do_start
 		# Detach so vzlogger survives the watchdog and its caller.
 		setsid();
 		open(STDIN, "<", "/dev/null");
+		# vzlogger writes to stdout/stderr only while its parent is not init, so
+		# after this process has exited everything goes through its own log file.
+		# The redirect still catches what comes before that: a failing exec and
+		# vzlogger's own complaint if it cannot open the log file at all.
 		open(STDOUT, ">>", $logfile) or open(STDOUT, ">", "/dev/null");
 		open(STDERR, ">&", \*STDOUT);
 		exec($binary, "-f", "-c", $vzlogger_config, "-o", $logfile);
@@ -452,15 +456,29 @@ sub vzlogger_binary
 	return undef;
 }
 
+# vzLogger logs through its own "log" option, which vzlogger_conf.pl writes into
+# the generated configuration together with a "verbosity" derived from the plugin
+# loglevel. This is a plain file, not a LoxBerry log session, for two reasons:
+# vzlogger keeps the handle open for its whole lifetime (a session file, renamed
+# or removed under it, would leave it writing into a deleted inode), and its
+# lines carry no LoxBerry <INFO>/<ERROR> tags, so the log manager would add
+# nothing but a new, mostly empty file per start. The Logfiles tab links it
+# directly instead.
+#
+# The same path is passed on the command line as well: vzlogger parses the
+# command line, then the configuration, then the command line again (checked in
+# the 0.8.x sources), so -o overrides the "log" key. Pointing both at one file
+# makes that order irrelevant.
+#
+# Size and age are the core's business, not the plugin's: log_maint.pl runs
+# hourly over log/plugins, gzips a *.log above 3 MB and truncates it in place
+# (copytruncate) - which is exactly right here, because vzlogger opens the file
+# with fopen(..., "a") and simply continues at the beginning afterwards.
 sub vzlogger_logfile
 {
 	my $dir = "$lbhomedir/log/plugins/$psubfolder";
 	make_path($dir) if (!-d $dir);
-	# A LoxBerry log session gives the file a timestamped name and registers it
-	# in the log manager; vzlogger writes into it directly through -o.
-	my $vzlog = LoxBerry::Log->new(name => "vzlogger", package => $psubfolder);
-	$vzlog->LOGSTART("vzlogger process log");
-	return $vzlog->filename();
+	return "$dir/vzlogger.log";
 }
 
 sub vzlogger_running
