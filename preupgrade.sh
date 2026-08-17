@@ -41,6 +41,31 @@ ARGV4=$4 # Forth argument is Plugin version
 ARGV5=$5 # Fifth argument is Base folder of LoxBerry
 #echo "<INFO> Installation folder is: $ARGV5"
 
+WATCHDOG="$ARGV5/bin/plugins/$ARGV3/watchdog.pl"
+
+# Stop vzlogger before purge_installation() deletes the plugin directories and
+# the new files are copied in, so nothing is replaced under a running process.
+# postroot.sh starts it again at the end of the installation.
+#
+# Ended through the watchdog's own PID probe rather than --action=stop: that
+# action writes the manual stop marker, which would make the upgrade look like a
+# deliberate stop and leave vzlogger down for good afterwards (issue #4).
+if [ -x "$WATCHDOG" ]; then
+	echo "<INFO> Stopping vzlogger for the upgrade"
+	PID=$("$WATCHDOG" --action=pid 2>/dev/null | tr -dc '0-9')
+	if [ -n "$PID" ]; then
+		kill -TERM "$PID" 2>/dev/null
+		i=0
+		while [ "$i" -lt 20 ] && [ -d "/proc/$PID" ]; do
+			sleep 0.25
+			i=$((i + 1))
+		done
+		if [ -d "/proc/$PID" ]; then
+			kill -KILL "$PID" 2>/dev/null
+		fi
+	fi
+fi
+
 echo "<INFO> Creating temporary folders for upgrading"
 mkdir -p /tmp/$ARGV1\_upgrade
 mkdir -p /tmp/$ARGV1\_upgrade/config

@@ -18,9 +18,16 @@
 #   restart         stop, then start
 #   check           restart vzlogger if it died unexpectedly (called from cron)
 #   status          exit 0 if vzlogger is running, 1 otherwise
+#   pid             print the running PID (unlogged, unlocked; for the web UI)
 #
 # Two markers gate the periodic check: the manual-stop marker (written by "stop")
-# and the autodiscovery marker. A manual/boot start clears both.
+# and the autodiscovery marker. "start" and "restart" clear both, because those
+# are the explicit user actions that say "run it" - restart is also the only way
+# back up from a manual stop, as the web interface has no separate start button.
+#
+# Nothing that runs unattended may use them for that reason. A stop is the user's
+# decision and has to survive a reboot and a plugin upgrade, so the boot daemon
+# and postroot.sh both call "check", not "start" or "restart" (issue #4).
 
 use strict;
 use warnings;
@@ -74,7 +81,15 @@ if ($verbose) {
 }
 LOGSTART("watchdog action=$action");
 
-make_path($runtime_dir) if (!-d $runtime_dir);
+# The runtime directory (PID file, failure counter) is on a tmpfs and is gone
+# after a reboot; daemon/daemon recreates it as root at boot. Creating it from
+# here can legitimately fail - as loxberry, a directory directly under /run is
+# not ours to make - and make_path() croaks by default, which would take the
+# whole watchdog down instead of just costing it the PID file. Everything below
+# falls back to scanning /proc, so a warning is the right response.
+my $mkpath_err;
+make_path($runtime_dir, { error => \$mkpath_err }) if (!-d $runtime_dir);
+LOGWARN("Could not create $runtime_dir - continuing without a PID file.") if (!-d $runtime_dir);
 
 # Serialize against a parallel run, for example cron firing while the web
 # interface triggers a restart.

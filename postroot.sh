@@ -85,12 +85,27 @@ if [ -f "$VZLOGGER_CONFIG" ]; then
 	chmod 0640 "$VZLOGGER_CONFIG"
 fi
 
-# Start (or restart) vzlogger through the watchdog. The watchdog only starts it
-# when vzlogger.conf has an enabled meter; otherwise it just ensures that no
-# vzlogger process is left running.
+# Bring vzlogger back up through the watchdog - but not against the user's
+# wishes. A manual stop has to survive a plugin upgrade, and "restart" cannot be
+# used blindly for that: it goes through do_start(), which clears the manual stop
+# marker, so every upgrade used to restart a vzlogger the user had deliberately
+# stopped and lose the marker along with it (issue #4).
+#
+# The marker is checked here rather than left to "check", because "check" leaves
+# an already running process alone - and the whole point after an upgrade is to
+# replace one that is still running the previous binary and configuration.
+# Same guard as in bin/vzlogger_pkg.sh after a vzlogger package update.
+#
+# postupgrade.sh has restored the marker from its backup by the time this runs;
+# on a fresh install there is none, and the watchdog then still starts nothing
+# until a meter is enabled.
 if [ -x "$WATCHDOG" ]; then
-	su loxberry -c "$WATCHDOG --action=restart" >/dev/null 2>&1 || true
-	echo "<INFO> vzlogger watchdog invoked (starts only if a meter is enabled)."
+	if [ -e "$PLUGIN_CONFIG_DIR/vzlogger_stopped.cfg" ]; then
+		echo "<INFO> vzlogger was stopped manually - leaving it stopped."
+	else
+		su loxberry -c "$WATCHDOG --action=restart" >/dev/null 2>&1 || true
+		echo "<INFO> vzlogger watchdog invoked (starts only if a meter is enabled)."
+	fi
 fi
 
 exit 0

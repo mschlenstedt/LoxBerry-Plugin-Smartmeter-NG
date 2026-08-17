@@ -5,14 +5,32 @@
 # Creates the udev rule for the I/R reading heads and hands the vzlogger start
 # over to the plugin watchdog, which runs as the loxberry user. vzlogger is not
 # a systemd service; the watchdog owns its lifecycle.
+#
+# "check", not "start". Both bring vzlogger up, but "start" is the explicit user
+# action and therefore CLEARS the manual stop marker: booting would restart a
+# vzlogger the user deliberately stopped and silently forget that they ever
+# stopped it. "check" honours the marker, skips when no meter is enabled, and
+# otherwise starts.
 
 LOGFILE=REPLACELBHOMEDIR/log/plugins/REPLACELBPPLUGINDIR/daemon.log
 WATCHDOG=REPLACELBHOMEDIR/bin/plugins/REPLACELBPPLUGINDIR/watchdog.pl
 AUTODISCOVERY_MARKER=REPLACELBHOMEDIR/config/plugins/REPLACELBPPLUGINDIR/vzlogger_autodiscovery.cfg
+RUNTIME_DIR=/var/run/shm/REPLACELBPPLUGINDIR
 
 # A boot always clears a leftover autodiscovery marker so the watchdog is not
 # blocked from starting vzlogger.
 rm -f "$AUTODISCOVERY_MARKER"
+
+# The runtime directory holds the PID file and the failure counter. It lives on
+# a tmpfs and is therefore gone after every reboot, and only postroot.sh ever
+# created it - at installation time. It has to be recreated here, as root: the
+# watchdog runs as loxberry and cannot create a directory directly under /run.
+mkdir -p "$RUNTIME_DIR"
+chown loxberry:loxberry "$RUNTIME_DIR"
+chmod 0750 "$RUNTIME_DIR"
+
+# The log directory is a RAM disk as well, so it may not exist yet this early.
+mkdir -p "$(dirname "$LOGFILE")"
 
 echo "`date` - Start Init " >>$LOGFILE
 echo "`date` - Creating UDEV rule for I/R heads: /etc/udev/rules.d/99-smartmeter.rules " >>$LOGFILE
@@ -23,7 +41,7 @@ udevadm control --reload-rules >>$LOGFILE 2>&1 && udevadm trigger >>$LOGFILE 2>&
 
 if [ -x "$WATCHDOG" ]; then
 	echo "`date` - Starting vzlogger through the plugin watchdog " >>$LOGFILE
-	su loxberry -c "$WATCHDOG --action=start" >>$LOGFILE 2>&1
+	su loxberry -c "$WATCHDOG --action=check" >>$LOGFILE 2>&1
 else
 	echo "`date` - Watchdog not found: $WATCHDOG " >>$LOGFILE
 fi
