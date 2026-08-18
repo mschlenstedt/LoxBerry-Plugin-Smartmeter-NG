@@ -80,8 +80,9 @@ sub form_logfiles
 	# The directory is taken from LoxBerry::System, never written out: the
 	# plugin folder is defined in plugin.cfg and is not fixed.
 	my @candidates = (
-		{ file => "$lbplogdir/vzlogger.log", title => $L{'LOGFILES.FILE_VZLOGGER'} },
-		{ file => "$lbplogdir/daemon.log",   title => $L{'LOGFILES.FILE_DAEMON'} },
+		{ file => "$lbplogdir/vzlogger.log",   title => $L{'LOGFILES.FILE_VZLOGGER'} },
+		{ file => "$lbplogdir/daemon.log",     title => $L{'LOGFILES.FILE_DAEMON'} },
+		{ file => "$lbplogdir/smartmeter.log", title => $L{'LOGFILES.FILE_INSTALL'} },
 	);
 
 	my @rows;

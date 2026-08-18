@@ -178,7 +178,7 @@ my $exit = 0;
 if ($action eq "start") { $exit = do_start(); }
 elsif ($action eq "stop") { $exit = do_stop(1); }
 elsif ($action eq "stop-discovery") { write_marker($autodiscovery_marker); $exit = do_stop(0); }
-elsif ($action eq "end-discovery") { unlink($autodiscovery_marker); $exit = do_check(); }
+elsif ($action eq "end-discovery") { unlink($autodiscovery_marker); $exit = do_end_discovery(); }
 elsif ($action eq "restart") { $exit = do_restart(); }
 elsif ($action eq "check") { $exit = do_check(); }
 elsif ($action eq "status") { $exit = vzlogger_running() ? $EXIT_OK : $EXIT_FAILED; }
@@ -367,6 +367,24 @@ sub do_restart
 	}
 	wlog_event("OK", "vzlogger restarted (PID $oldpid -> $newpid).") if ($newpid);
 	return $EXIT_OK;
+}
+
+# Brings vzlogger back up after OBIS discovery has released the device.
+#
+# Not do_check(): discovery stopped vzlogger itself, so finding it stopped here
+# is expected, not a crash. Routing this through the periodic check counted a
+# failure and logged "vzlogger is not running (failure 1 of 5). Restarting." for
+# every perfectly ordinary discovery run - which reads like something went wrong
+# and, since that line is written regardless of loglevel, was impossible to
+# overlook. A manual stop still wins over the restart.
+sub do_end_discovery
+{
+	return $EXIT_OK if (-e $stopped_marker);
+	return $EXIT_OK if (vzlogger_running());
+	# The stop was ours, so it must not count towards the give-up threshold.
+	reset_failures();
+	wlog_event("INFO", "OBIS discovery finished. Starting vzlogger again.");
+	return do_start();
 }
 
 # Called periodically. Restarts vzlogger only if it should be running and was
