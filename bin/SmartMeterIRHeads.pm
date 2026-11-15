@@ -184,6 +184,8 @@ sub valid_host
 # Probes a Tibber Pulse bridge: reachable, credentials valid and a framed SML
 # telegram is returned. Returns "" on success or a localizable error key. The
 # password is passed via a 0600 curl config file, not the command line.
+# The bridge serves the data at node_data.json (newer firmware) or data.json
+# (older firmware); both are tried, the same order as tibberpulse_meter.sh.
 sub tibberpulse_probe
 {
 	my ($host, $node, $password) = @_;
@@ -191,13 +193,28 @@ sub tibberpulse_probe
 	$node = "1" if (!defined($node) || $node eq "");
 	return "UI_TIBBER_INVALID_NODE" if ($node !~ /\A\d+\z/);
 
+	my $err = "";
+	foreach my $path ("node_data.json", "data.json") {
+		$err = tibberpulse_probe_path($host, $node, $password, $path);
+		# Success, or the bridge is not reachable / refuses the credentials:
+		# the other path would not change that.
+		last if ($err eq "" || $err eq "UI_TIBBER_UNREACHABLE" || $err eq "UI_TIBBER_AUTH_FAILED");
+	}
+	return $err;
+}
+
+# One probe request against http://<host>/<path>?node_id=<node>. Returns "" or
+# a localizable error key (see tibberpulse_probe).
+sub tibberpulse_probe_path
+{
+	my ($host, $node, $password, $path) = @_;
 	require File::Temp;
 	my ($cfgfh, $cfg)   = File::Temp::tempfile("tibberprobe-XXXXXX", TMPDIR => 1, UNLINK => 1);
 	my ($bodyfh, $body) = File::Temp::tempfile("tibberbody-XXXXXX",  TMPDIR => 1, UNLINK => 1);
 	close($bodyfh);
 	chmod(0600, $cfg);
 	(my $pw = defined($password) ? $password : "") =~ s/([\\"])/\\$1/g;
-	print $cfgfh "url = \"http://$host/data.json?node_id=$node\"\n";
+	print $cfgfh "url = \"http://$host/$path?node_id=$node\"\n";
 	print $cfgfh "user = \"admin:$pw\"\n";
 	close($cfgfh);
 
