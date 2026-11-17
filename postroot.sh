@@ -99,12 +99,31 @@ fi
 # postupgrade.sh has restored the marker from its backup by the time this runs;
 # on a fresh install there is none, and the watchdog then still starts nothing
 # until a meter is enabled.
+#
+# Tibber Pulse bridges survive a plain restart on purpose, so after an upgrade
+# they would go on running the previous tibberpulse_meter.sh until the next
+# reboot. Stop them here (as root, with the new script, which takes down the
+# whole process tree); the restart below starts them again from the new files.
+#
+# The restart itself runs detached and waits for the lock: this script runs
+# inside plugininstall.pl, which holds the plugininstall lock until the whole
+# installation is done, and LoxBerry::System::lock() waits for that one too.
+# Called in the foreground, the watchdog gave up after 15 s - every upgrade
+# left vzlogger stopped.
+TIBBER_SCRIPT="$ARGV5/bin/plugins/$ARGV3/tibberpulse_meter.sh"
 if [ -x "$WATCHDOG" ]; then
 	if [ -e "$PLUGIN_CONFIG_DIR/vzlogger_stopped.cfg" ]; then
 		echo "<INFO> vzlogger was stopped manually - leaving it stopped."
 	else
-		su loxberry -c "$WATCHDOG --action=restart" >/dev/null 2>&1 || true
-		echo "<INFO> vzlogger watchdog invoked (starts only if a meter is enabled)."
+		for pidfile in "$RUNTIME_DIR"/tibberpulse-*.pid; do
+			[ -e "$pidfile" ] || continue
+			name="$(basename "$pidfile" .pid)"
+			name="${name#tibberpulse-}"
+			"$TIBBER_SCRIPT" stop "$name" >/dev/null 2>&1 || true
+			echo "<INFO> Tibber Pulse bridge '$name' stopped; the watchdog starts it again with the new version."
+		done
+		su loxberry -c "setsid $WATCHDOG --action=restart --lockwait=900 </dev/null >/dev/null 2>&1 &" || true
+		echo "<INFO> vzlogger restart scheduled - it runs once the installation has finished (starts only if a meter is enabled)."
 	fi
 fi
 

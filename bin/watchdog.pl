@@ -7,6 +7,7 @@
 # is disabled by bin/vzlogger_pkg.sh.
 #
 # Usage: watchdog.pl --action=start|stop|stop-discovery|end-discovery|restart|check|status [--verbose]
+#                    [--lockwait=<seconds>]
 #
 #   start           start vzlogger unless it is already running
 #   stop            stop vzlogger and remember that this was intentional
@@ -65,8 +66,8 @@ my $EXIT_FAILED = 1;   # the action was attempted and failed
 my $EXIT_USAGE  = 2;   # no or unknown action
 my $EXIT_BUSY   = 3;   # the lock was not free - nothing was done at all
 
-my ($verbose, $action);
-GetOptions("verbose=s" => \$verbose, "action=s" => \$action);
+my ($verbose, $action, $lockwait_opt);
+GetOptions("verbose=s" => \$verbose, "action=s" => \$action, "lockwait=i" => \$lockwait_opt);
 $action = "" if (!defined($action));
 
 # Lightweight, unlogged status probe for the web interface, which polls it every
@@ -161,7 +162,14 @@ if (!-d $runtime_dir) {
 # blocks while apt/dpkg or an unattended-upgrade is running, and on the lbupdate
 # and plugininstall locks - so this branch is not exotic on a Raspberry Pi that
 # installs its updates in the background.
+#
+# --lockwait overrides the wait for a caller that runs detached and has to
+# outlast a lock it cannot wait for in the foreground: postroot.sh runs inside
+# plugininstall.pl, which holds the plugininstall lock until the installation
+# is finished - a restart from there with 15 s always gave up, and vzlogger
+# stayed down after every upgrade.
 my $lockwait = ($action eq "check") ? 120 : 15;
+$lockwait = $lockwait_opt if (defined($lockwait_opt) && $lockwait_opt > 0);
 my $lockstate = LoxBerry::System::lock(lockfile => "smartmeter-watchdog", wait => $lockwait);
 if ($lockstate) {
 	# Nothing was done here - that has to reach the caller, otherwise a blocked

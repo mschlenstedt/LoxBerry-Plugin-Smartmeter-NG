@@ -58,6 +58,14 @@ echo "<INFO> Remove obsolete Legacy polling cronjobs"
 for cronfolder in cron.01min cron.03min cron.05min cron.10min cron.15min cron.30min cron.hourly cron.reboot
 do
 	cronjob="$ARGV5/system/cron/$cronfolder/$ARGV2"
+	# The current plugin installs its watchdog check under the very same name
+	# (cron.05min/<plugin name>), and plugininstall.pl has copied it in before
+	# this script runs. Deleting every job of that name removed the watchdog
+	# cron on every upgrade since 2.0, so only a job that does not call the
+	# watchdog is a legacy one.
+	if [ -f "$cronjob" ] && grep -q 'watchdog\.pl' "$cronjob" 2>/dev/null; then
+		continue
+	fi
 	if [ -e "$cronjob" ] || [ -L "$cronjob" ]; then
 		rm -f "$cronjob"
 		echo "<INFO> Removed obsolete cronjob: $cronjob"
