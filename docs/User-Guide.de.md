@@ -91,6 +91,15 @@ vzLogger veröffentlicht jeden Kanal als retained Nachricht unter
 z. B. `{"timestamp": 1749123456789, "value": 16125133}` (Energiezähler in Wh).
 Für die Einbindung in Loxone abonniert das LoxBerry MQTT Gateway die Topics.
 
+Für jeden Tibber Pulse veröffentlicht das Plugin zusätzlich einmal pro Minute
+die Metriken des Pulse als retained JSON unter
+`smartmeter-ng/tibberpulse/<Name>/metrics`. Interessant sind vor allem
+`node` → `battery_voltage`, `temperature`, `avg_rssi`, `avg_lqi` sowie
+`packet_delivery_rate`. Der Pulse selbst frischt diese Werte nur etwa alle fünf
+Minuten auf. Im MQTT Gateway lassen sich die gewünschten Felder per JSON-Expand
+in der Subscription auswählen; der virtuelle Eingang heißt dann z. B.
+`smartmeter-ng_tibberpulse_<Name>_metrics_node_battery_voltage`.
+
 ## Fehlersuche
 
 - **Keine Werte / leere Kanäle:** PIN-Freischaltung, Sitz des Lesekopfs und das

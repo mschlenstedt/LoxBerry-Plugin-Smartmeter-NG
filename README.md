@@ -14,7 +14,7 @@ This plugin builds on **vzLogger**, the open-source software of the [Volkszähle
 
 ## Main Features
 
-- **Reading heads** (tab *I/R Leseköpfe*): auto-detects USB I/R heads below `/dev/serial/smartmeter/`, and lets you add serial heads or a **Tibber Pulse** (I/R head with a WLAN bridge) manually. A Tibber Pulse is validated (reachable, credentials, SML data) and then served as a virtual reading head by its own bridge process.
+- **Reading heads** (tab *I/R Leseköpfe*): auto-detects USB I/R heads below `/dev/serial/smartmeter/`, and lets you add serial heads or a **Tibber Pulse** (I/R head with a WLAN bridge) manually. A Tibber Pulse is validated (reachable, credentials, SML data) and then served as a virtual reading head by its own bridge process, which also publishes the pulse's own metrics (battery, temperature, radio quality) to MQTT once a minute.
 - **Meters** (tab *Smartmeter*): create SML, D0 or OMS meters on a head; `exec` and `random` exist for testing. Saving runs OBIS auto-discovery automatically.
 - **Channels** (tab *Kanäle*): manage the discovered OBIS channels and see each channel's **current value live** (polled from vzLogger's local HTTP endpoint).
 - **Settings** (tab *Einstellungen*): MQTT base topic, local HTTP port and retry.

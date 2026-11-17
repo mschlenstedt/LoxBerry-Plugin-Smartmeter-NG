@@ -19,6 +19,17 @@
 # the bridge's own LoxBerry logfile). Once it was raised, the interval is frozen
 # at its current value on the next successful pull (it does not drop back).
 #
+# Metrics: independently of the SML stream, a second loop reads the pulse's
+# own metrics (battery, temperature, radio quality, counters) once per metrics
+# interval and publishes them retained via MQTT (tibberpulse_publish.pl):
+#   node_metrics.json?node_id=<node> (newer) / metrics.json (older firmware)
+#     -> <base topic>/tibberpulse/<name>/metrics
+# Both metrics paths are accepted the same way as the data paths. A failing
+# metrics read never touches the SML poll or its interval.
+# The bridge's status.json is deliberately not read: the bridge needs about 5 s
+# to answer it and serves no other request meanwhile, so every read cost the
+# SML poll a timeout (measured on firmware ESP 1811 / EFR 835).
+#
 # Usage:
 #   sudo ./tibberpulse_meter.sh <name>          run the bridge (foreground loop)
 #   sudo ./tibberpulse_meter.sh stop <name>     stop a running bridge
@@ -31,6 +42,7 @@
 # Env overrides (run mode):
 #   SMARTMETER_TIBBER_INTERVAL  initial seconds between polls (default 3)
 #   SMARTMETER_TIBBER_TIMEOUT   curl timeout in seconds (default 4)
+#   SMARTMETER_TIBBER_METRICS_INTERVAL  seconds between metrics reads (default 60)
 
 set -u
 
@@ -59,8 +71,14 @@ proc_tree() {
 # (re-parented to init, out of reach of "pkill -P"), polling on and holding the
 # device. The tree is frozen first, so nothing can be spawned between listing
 # and killing; the listing is repeated until it no longer changes.
+#
+# The bridge is started through sudo, and sudo suspends itself as soon as its
+# child is stopped (job control). Killed in that state, the child is never
+# reaped and the sudo wrapper stays behind, stopped, for good. So a sudo parent
+# of this script is resumed afterwards and exits on its own.
 stop_tree() {
-	local pids prev=""
+	local pids prev="" parent
+	parent="$(ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ')"
 	while :; do
 		pids="$(proc_tree "$1")"
 		[ "$pids" = "$prev" ] && break
@@ -70,6 +88,10 @@ stop_tree() {
 	done
 	# shellcheck disable=SC2086
 	kill -KILL $pids 2>/dev/null || true
+	if [ -n "$parent" ] && [ "$parent" != "1" ] \
+		&& tr '\0' ' ' < "/proc/$parent/cmdline" 2>/dev/null | grep -q '^sudo .*tibberpulse_meter\.sh'; then
+		kill -CONT "$parent" 2>/dev/null || true
+	fi
 }
 
 # ---------------------------------------------------------------- stop mode
@@ -87,7 +109,8 @@ if [ "${1:-}" = "stop" ]; then
 		fi
 	fi
 	rm -f "$pidfile" "$RUNDIR/tibberpulse-$sname.curl" "$RUNDIR/tibberpulse-$sname.bin" \
-	      "$RUNDIR/tibberpulse-$sname.interval" "$AUTO_DIR/$sname" 2>/dev/null || true
+	      "$RUNDIR/tibberpulse-$sname.interval" "$RUNDIR/tibberpulse-$sname.metrics" \
+	      "$AUTO_DIR/$sname" 2>/dev/null || true
 	exit 0
 fi
 
@@ -95,6 +118,7 @@ fi
 HEAD="${1:-}"
 INTERVAL_INIT="${SMARTMETER_TIBBER_INTERVAL:-3}"
 TIMEOUT="${SMARTMETER_TIBBER_TIMEOUT:-4}"
+METRICS_INTERVAL="${SMARTMETER_TIBBER_METRICS_INTERVAL:-60}"
 
 valid_name "$HEAD" || { echo "Usage: $0 <name>   (name of a tibberpulse head in irheads.json)"; exit 1; }
 need_root
@@ -107,9 +131,12 @@ CURLCFG="$RUNDIR/tibberpulse-$HEAD.curl"
 PIDFILE="$RUNDIR/tibberpulse-$HEAD.pid"
 TMPBIN="$RUNDIR/tibberpulse-$HEAD.bin"
 STATEFILE="$RUNDIR/tibberpulse-$HEAD.interval"
+METRICSFILE="$RUNDIR/tibberpulse-$HEAD.metrics"
+PUBLISHER="$SCRIPT_DIR/tibberpulse_publish.pl"
 
-# Data paths of the bridge, newest firmware first (see header).
+# Data and metrics paths of the bridge, newest firmware first (see header).
 BRIDGE_PATHS="node_data.json data.json"
+METRICS_PATHS="node_metrics.json metrics.json"
 
 # Read host/node/password/device from irheads.json and write the curl config
 # (credentials only) so the password never appears in the process list.
@@ -155,7 +182,7 @@ logline() {
 }
 
 cleanup() {
-	rm -f "$PIDFILE" "$CURLCFG" "$TMPBIN" "$STATEFILE" "$DEVICE" 2>/dev/null || true
+	rm -f "$PIDFILE" "$CURLCFG" "$TMPBIN" "$STATEFILE" "$METRICSFILE" "$DEVICE" 2>/dev/null || true
 	pkill -P $$ 2>/dev/null || true
 }
 # INT/TERM must end the script: a handler that only cleaned up let the loop run
@@ -168,6 +195,15 @@ echo $$ > "$PIDFILE"
 mkdir -p "$(dirname "$DEVICE")"
 # state: "interval frozen raised path" (path "-" = not yet known)
 echo "$INTERVAL_INIT 0 0 -" > "$STATEFILE"
+
+# Prints the candidate paths in the order to try them: the known one (if not
+# "-") first, then the others in their given order.
+ordered() {
+	local known="$1" p
+	shift
+	[ "$known" = "-" ] || echo "$known"
+	for p in "$@"; do [ "$p" = "$known" ] || echo "$p"; done
+}
 
 # Fetches <path> once into $TMPBIN. Sets POLL_CODE to the HTTP status ("000" on
 # timeout / connection error). Succeeds only on HTTP 200 with an SML telegram.
@@ -187,13 +223,9 @@ poll() {
 # gone), so the inner loop ends and the outer loop re-creates the device.
 fetch_one() {
 	read -r interval frozen raised path < "$STATEFILE"
-	local candidates p ok=""
-	if [ "${path:--}" = "-" ]; then
-		candidates="$BRIDGE_PATHS"
-	else
-		candidates="$path $(printf '%s\n' $BRIDGE_PATHS | grep -vxF "$path" | tr '\n' ' ')"
-	fi
-	for p in $candidates; do
+	local p ok=""
+	# shellcheck disable=SC2086
+	for p in $(ordered "${path:--}" $BRIDGE_PATHS); do
 		if poll "$p"; then ok="$p"; break; fi
 		case "$POLL_CODE" in 000|401) break ;; esac
 	done
@@ -222,6 +254,68 @@ fetch_one() {
 	fi
 	return 0
 }
+
+# Fetches <path> (the bridge-relative URL, query included) into <file>. Sets
+# GET_CODE like poll() does. Succeeds only on HTTP 200 with a JSON object.
+get_json() {
+	GET_CODE="$(curl -sS --max-time "$TIMEOUT" -K "$CURLCFG" -o "$2" -w '%{http_code}' \
+		"http://$HOST/$1" 2>/dev/null)"
+	[ "$GET_CODE" = "200" ] && [ "$(head -c1 "$2" 2>/dev/null)" = "{" ]
+}
+
+# Metrics loop (see header). Runs in the background beside the SML stream, its
+# output goes nowhere near the PTY. Logs only changes: which path delivers,
+# when the metrics or the broker go away and when they come back. The pulse
+# refreshes its metrics only every ~5 minutes and the bridge drops a request
+# now and then, so a failure is only reported after METRICS_FAILS in a row.
+METRICS_FAILS=3
+metrics_loop() {
+	local mpath="-" p ok state="" newstate code rc fails=0
+	while :; do
+		ok=""
+		code=""
+		# shellcheck disable=SC2086
+		for p in $(ordered "$mpath" $METRICS_PATHS); do
+			if get_json "$p?node_id=$NODE" "$METRICSFILE"; then ok="$p"; break; fi
+			code="$GET_CODE"
+			case "$GET_CODE" in 000|401) break ;; esac
+		done
+		newstate="nometrics"
+		if [ -n "$ok" ]; then
+			if [ "$ok" != "$mpath" ]; then
+				if [ "$mpath" = "-" ]; then
+					logline INFO "Tibber Pulse '$HEAD' liefert Metriken unter /$ok."
+				else
+					logline INFO "Tibber Pulse '$HEAD' liefert unter /$mpath keine Metriken mehr, aber unter /$ok; Abfragepfad umgestellt."
+				fi
+				mpath="$ok"
+			fi
+			# Publisher exit 1 = no valid JSON, 2 and up = no broker.
+			# LBHOMEDIR spares LoxBerry::System its "su - loxberry" lookup as root.
+			LBHOMEDIR="$LBHOMEDIR" perl "$PUBLISHER" "$HEAD" metrics "$METRICSFILE" >/dev/null 2>&1
+			rc=$?
+			if [ "$rc" -eq 0 ]; then newstate="ok"
+			elif [ "$rc" -ge 2 ]; then newstate="nopublish"
+			fi
+		fi
+		if [ "$newstate" = "ok" ]; then
+			fails=0
+		else
+			fails=$(( fails + 1 ))
+			[ "$fails" -lt "$METRICS_FAILS" ] && newstate="$state"
+		fi
+		if [ "$newstate" != "$state" ]; then
+			case "$newstate" in
+				ok)        [ -n "$state" ] && logline INFO "Tibber Pulse '$HEAD' Metriken werden wieder per MQTT veröffentlicht." ;;
+				nometrics) logline ERROR "Tibber Pulse '$HEAD' liefert keine Metriken (HTTP $code)." ;;
+				nopublish) logline ERROR "Tibber Pulse '$HEAD' Metriken konnten nicht per MQTT veröffentlicht werden." ;;
+			esac
+			state="$newstate"
+		fi
+		sleep "$METRICS_INTERVAL"
+	done
+}
+metrics_loop < /dev/null > /dev/null 2>&1 &
 
 # socat waits for a reader (wait-slave) and exits when vzLogger disconnects; the
 # outer loop then re-creates the device for the next reader. The interval state
