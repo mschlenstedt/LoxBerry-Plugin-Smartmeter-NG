@@ -67,7 +67,10 @@ $(function() {
 		$(document).on("click", ".meter-del", function() { meterDelete($(this).data("name")); });
 		meterLoadDevices();
 		meterLoadList();
-		meterApplyProto($("#meter-protocol").val(), false);
+		// The form starts as "new meter", so it needs the per-protocol defaults
+		// too - without them the first meter after a page load got the select's
+		// first option, use_local_time "no", and vzLogger dropped its telegrams.
+		meterApplyProto($("#meter-protocol").val(), true);
 	}
 
 	// Channels tab: list of all channels plus an add/edit form.
@@ -256,6 +259,16 @@ function smEsc(value) {
 function smStatus(sel, text, kind) {
 	var color = kind === "ok" ? "#4a9e2f" : (kind === "error" ? "#c0392b" : "#2274c6");
 	$(sel).text(text).css({ display: "block", "text-align": "center", "margin-top": "0.5em", color: color });
+}
+
+// Brings an edit form into view after an edit button filled it: opens its
+// collapsible block and scrolls there. The forms sit below their lists, so
+// without this a click on the gear filled a form far off-screen and looked as
+// if nothing had happened.
+function smRevealForm(formSel) {
+	var block = $(formSel).closest("details");
+	block.prop("open", true);
+	if (block.length) { block[0].scrollIntoView({ behavior: "smooth", block: "start" }); }
 }
 
 // Small icon button used across all tabs; uses the PrimeIcons font (.pi) so every
@@ -659,6 +672,7 @@ function meterEdit(name) {
 	$("#meter-format").val(m.format || "");
 	$("#meter-form-title").text(meterText.EDIT);
 	meterStatusClear();
+	smRevealForm("#meter-form");
 }
 
 function meterFormReset() {
@@ -951,6 +965,7 @@ function channelEdit(meter, uuid) {
 	$("#channel-form-title").text(channelText.EDIT);
 	$("#ch-save-btn").text(channelText.SAVEBTN);
 	$("#channel-status").css("display", "none");
+	smRevealForm("#channel-form");
 }
 
 function channelFormReset() {
